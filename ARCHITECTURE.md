@@ -51,27 +51,43 @@ Browser (React SPA)
   sometimes unset (`secondary: -999`); the fetch always scans backward for
   the last valid reading rather than trusting the array's last element.
 
-## Full IRONMAN swim-start estimate (implemented)
+## Swim course model (implemented)
 
-The full-distance swim starts ~1.2mi upstream of the 70.3 start, roughly
-midway between `CKTT1` (Chickamauga Dam tailwater) and `CHAT1` (estimate,
-not yet verified against a course map). `getEffectiveCfs(chatCfs, upstreamCfs, raceType)`
-blends the two 50/50 when `raceType === "full"` and both readings are valid;
-otherwise (70.3, or CKTT1 unavailable) it's just the CHAT1 reading, same as
-before.
+Sourced facts (third-party race guides — nvdmcoaching, endurancenation —
+cross-checked against public river-mile data; not the primary official
+athlete-guide PDF, see `TODO.md`):
+
+| | upstream of Ross's Landing / CHAT1 | swim cutoff |
+|---|---|---|
+| CKTT1 (Chickamauga Dam tailwater) | ~8.0mi | — |
+| 70.3 swim start | 1.4mi | 1:20 (80min) |
+| Full swim start | 2.4mi | 2:20 (140min) |
+
+**CFS blend.** `upstreamWeight(raceType)` = the swim start's fraction of the
+CKTT1→CHAT1 span (70.3: 1.4/8 = 17.5%, full: 2.4/8 = 30%) — replacing an
+earlier guessed 50/50 that only applied to full. `getEffectiveCfs()` blends
+CKTT1 and CHAT1 by that weight whenever CKTT1 has a valid reading; both race
+types get a real (if small, for 70.3) blend now, not just full.
 
 CKTT1's flow field (`secondary`) is essentially always the `-999` sentinel in
 NOAA's feed — it isn't reliably rated for flow, only stage (`primary`, ft) —
-so `fetchUpstreamCfs()` returns `null` whenever that's the case and the app
-falls back to CHAT1-only automatically, with a small note on the full-IM
-tile ("CKTT1 upstream: unavailable"). No code change is needed if/when CKTT1
-starts reporting valid flow again — the blend picks it up the next fetch
-cycle.
+so `fetchUpstreamCfs()` returns `null` whenever that's the case and
+`getEffectiveCfs()` falls back to CHAT1-only automatically, with a small note
+on the UI tile. No code change is needed if/when CKTT1 starts reporting
+valid flow again — the blend picks it up the next fetch cycle.
+
+**Cutoff-based threshold adjustment.** Checked whether the full's longer
+swim cutoff should mean a separate cancellation ladder: cutoff pace works
+out to 58.3 min/mi for full vs 57.1 min/mi for 70.3 — within ~2% of each
+other, full actually *slightly* more forgiving. `paceScale(raceType)`
+captures that ratio and `cfsProbability()` divides the input CFS by it
+before applying the (shared) threshold ladder, rather than maintaining two
+separately hand-tuned ladders for a ~2% difference that isn't really there.
 
 ## Planned extensions (not yet built — see TODO.md)
 
-- Full-distance-specific cancellation thresholds — `cfsProbability()` still
-  applies the same ladder to both race types, but the full's swim cutoff
-  time differs from 70.3's, so the same CFS likely carries different risk.
 - TVA's own Chickamauga Dam release data, as a possible alternative to
   waiting on NOAA to rate CKTT1 for flow.
+- Revisit the pace-scale adjustment if real per-distance cancellation
+  history ever gives a stronger empirical signal than the cutoff-pace math
+  above.

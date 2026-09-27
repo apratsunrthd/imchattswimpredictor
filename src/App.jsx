@@ -29,16 +29,42 @@ async function fetchUpstreamCfs() {
   }
 }
 
-// The full-distance swim starts ~1.2mi upstream of the 70.3 start, roughly
-// midway between CKTT1 and CHAT1 (estimate — pending confirmation against an
-// actual course map, see TODO.md). When CKTT1 has a real flow reading, blend
-// it in for that swim-start estimate; when it doesn't (the common case right
-// now), fall back to CHAT1 alone, same as the 70.3 model.
-const UPSTREAM_WEIGHT = 0.5;
+// Swim course facts, sourced from IRONMAN/coaching race guides (nvdmcoaching,
+// endurancenation) cross-checked against public river-mile data — not the
+// primary official athlete-guide PDF, so treat as best-available rather than
+// surveyed. See ARCHITECTURE.md for sources.
+//   - CKTT1 (Chickamauga Dam tailwater) sits at Tennessee River Mile ~471.
+//   - CHAT1 / Ross's Landing (both swim finishes) is ~8 river miles
+//     downstream of the dam.
+//   - 70.3 swim starts 1.4mi upstream of Ross's Landing, cutoff 1:20 (80min).
+//   - Full swim starts 2.4mi upstream of Ross's Landing, cutoff 2:20 (140min).
+const GAUGE_SPAN_MILES = 8;
+const RACE_SWIM = {
+  "70.3": { upstreamMiles: 1.4, cutoffMinutes: 80 },
+  full:   { upstreamMiles: 2.4, cutoffMinutes: 140 },
+};
+
+// Fraction of the CKTT1→CHAT1 span the swim start sits at, i.e. how much of
+// the effective CFS should come from the upstream gauge vs CHAT1.
+function upstreamWeight(raceType) {
+  const miles = RACE_SWIM[raceType]?.upstreamMiles ?? 0;
+  return Math.min(1, miles / GAUGE_SPAN_MILES);
+}
+
+// Cutoff pace (minutes allowed per swim mile), relative to 70.3's. A race
+// with a more generous per-mile cutoff can tolerate a given CFS with less
+// risk, so its threshold ladder should read that CFS as slightly less severe.
+function paceScale(raceType) {
+  const race = RACE_SWIM[raceType];
+  const base = RACE_SWIM["70.3"];
+  if (!race) return 1;
+  return (race.cutoffMinutes / race.upstreamMiles) / (base.cutoffMinutes / base.upstreamMiles);
+}
 
 function getEffectiveCfs(chatCfs, upstreamCfs, raceType) {
-  if (raceType === "full" && chatCfs !== null && upstreamCfs !== null) {
-    return Math.round(upstreamCfs * UPSTREAM_WEIGHT + chatCfs * (1 - UPSTREAM_WEIGHT));
+  const weight = upstreamWeight(raceType);
+  if (weight > 0 && chatCfs !== null && upstreamCfs !== null) {
+    return Math.round(upstreamCfs * weight + chatCfs * (1 - weight));
   }
   return chatCfs;
 }
@@ -80,15 +106,16 @@ async function fetchWeather() {
 
 // ─── Probability model ────────────────────────────────────────────────────────
 
-function cfsProbability(cfs) {
-  if (cfs < 8000)  return 97;
-  if (cfs < 12000) return 88;
-  if (cfs < 16000) return 72;
-  if (cfs < 20000) return 52;
-  if (cfs < 25000) return 28;
-  if (cfs < 35000) return 12;
-  if (cfs < 45000) return 4;
-  if (cfs < 50000) return 2;
+function cfsProbability(cfs, raceType = "70.3") {
+  const adjusted = cfs / paceScale(raceType);
+  if (adjusted < 8000)  return 97;
+  if (adjusted < 12000) return 88;
+  if (adjusted < 16000) return 72;
+  if (adjusted < 20000) return 52;
+  if (adjusted < 25000) return 28;
+  if (adjusted < 35000) return 12;
+  if (adjusted < 45000) return 4;
+  if (adjusted < 50000) return 2;
   return 1;
 }
 
@@ -100,8 +127,8 @@ const WEATHER_MODIFIERS = {
   flood_warning: { delta: -35, label: "⚠️ Flood warning active", icon: "🚨",  color: "#ef4444" },
 };
 
-function calcProbability(cfs, weatherCondition) {
-  const base = cfsProbability(cfs);
+function calcProbability(cfs, weatherCondition, raceType = "70.3") {
+  const base = cfsProbability(cfs, raceType);
   const weatherDelta = WEATHER_MODIFIERS[weatherCondition]?.delta ?? 0;
   return Math.max(1, base + weatherDelta - 9); // Chattanooga Discount™
 }
@@ -231,12 +258,12 @@ export default function App() {
   const condition = weather?.condition ?? "clear";
   const race      = getCurrentRace();
   const effectiveCfs = cfs !== null ? getEffectiveCfs(cfs, upstreamCfs, race.type) : null;
-  const usesUpstream = race.type === "full";
-  const prob      = effectiveCfs !== null ? calcProbability(effectiveCfs, condition) : null;
+  const usesUpstream = upstreamWeight(race.type) > 0;
+  const prob      = effectiveCfs !== null ? calcProbability(effectiveCfs, condition, race.type) : null;
   const riverSt   = effectiveCfs !== null ? getRiverStatus(effectiveCfs) : null;
   const verdict   = prob !== null ? getVerdict(prob) : null;
   const wMod      = WEATHER_MODIFIERS[condition] ?? WEATHER_MODIFIERS.clear;
-  const cfsDelta  = effectiveCfs !== null ? cfsProbability(effectiveCfs) : null;
+  const cfsDelta  = effectiveCfs !== null ? cfsProbability(effectiveCfs, race.type) : null;
   const fmtCountdown = `${Math.floor(countdown/60)}:${String(countdown%60).padStart(2,"0")}`;
 
   return (

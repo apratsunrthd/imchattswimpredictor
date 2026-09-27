@@ -29,27 +29,27 @@ and [TODO.md](TODO.md) for what's next.
 
 ## What works
 
-- Live 70.3 Chattanooga (May) swim-odds calculation: real CFS + real weather
-  → single probability, rendered in the existing UI.
+- Live 70.3 and full Chattanooga swim-odds calculation: real CFS + real
+  weather → single probability, rendered in the existing UI.
 - Race calendar auto-advances between 70.3 2026 / full 2026 / 70.3 2027.
+- Full-IM swim-start CFS estimate, blending CKTT1 (upstream) and CHAT1 by
+  their real river-mile-derived weights (see ARCHITECTURE.md), with an
+  automatic, silent fallback to CHAT1-only whenever CKTT1 has no valid flow
+  reading (the common case today) — ready to use real CKTT1 data the moment
+  it's available again, no code change needed.
+- Cutoff-pace-aware threshold adjustment: checked whether full's longer swim
+  cutoff should mean a separate cancellation ladder — it doesn't, meaningfully
+  (full is ~2% more forgiving per mile than 70.3), so that's a small ladder
+  adjustment (`paceScale`) rather than two hand-tuned ladders.
 
 ## In progress / planned
 
-1. **Full IRONMAN support** — the full-distance swim (2.4mi) starts ~1.2mi
-   further upstream than the 70.3 start (~1.2mi), roughly midway between the
-   `CHAT1` gauge and the upstream `CKTT1` gauge (Chickamauga Dam tailwater).
-   Needs its own CFS estimate and its own cancellation thresholds (different
-   swim cutoff time than 70.3).
-2. **CKTT1 upstream gauge** — intended as a leading indicator / interpolation
-   input for the full-IM swim-start estimate. **Key finding:** CKTT1 does not
-   publish a flow (CFS) rating — `secondary` is always `-999` in NOAA's feed,
-   only `primary` (pool stage, ft) is populated. Folding it into the
-   probability math requires either TVA's own Chickamauga Dam release data or
-   a stage-based proxy calibrated against CHAT1 history — not a direct
-   linear interpolation between two CFS readings as originally assumed.
-3. **Simulated triathlete review panel** — 10 subagent personas critique the
+1. **Simulated triathlete review panel** — 10 subagent personas critique the
    app/model as a fast, cheap proxy before recruiting real race alumni.
-4. **Impeccable design review** — UX/visual pass via the `impeccable` skill.
+   Sequenced **after** the impeccable pass below, so they're reviewing a
+   polished product.
+2. **Impeccable design review** — UX/visual pass via the `impeccable` skill.
+   Next up.
 
 ## Key decisions
 
@@ -57,6 +57,11 @@ and [TODO.md](TODO.md) for what's next.
   deterministic, no key, CORS-open, and matches what the README always
   claimed the app did.
 - Chose a simulated (subagent) triathlete panel before real recruitment, to
-  get cheap signal first.
-- CKTT1 will not feed the probability model until its flow-data gap is
-  resolved (see #2 above) — display-only trend/stage signal in the meantime.
+  get cheap signal first — sequenced after the impeccable design pass.
+- Swim-start distances, cutoffs, and the CKTT1–CHAT1 river-mile span come
+  from third-party race guides and public river-mile data, cross-checked
+  but not from IRONMAN's own official athlete-guide PDF — reasonable
+  confidence, not surveyed. See TODO.md to upgrade the source.
+- CKTT1 will not meaningfully feed the probability model until NOAA (or TVA)
+  gives it a real flow rating — the blend logic is ready and dormant, not
+  disabled.

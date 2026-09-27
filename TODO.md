@@ -4,17 +4,25 @@
 
 ## Next up (Claude / model work)
 
-- [x] **Full IRONMAN swim-start CFS blend** — `getEffectiveCfs()` blends
-  CKTT1 (upstream) and CHAT1 50/50 for `race.type === "full"`, falling back
-  to CHAT1-only whenever CKTT1 has no valid flow reading (the common case —
-  see below). Ready to start using CKTT1 automatically the moment it
-  reports real data again, no code change needed.
-  - [ ] Still open: full-distance-specific cancellation thresholds (its
-    swim cutoff time differs from 70.3's, so the same CFS carries different
-    risk) — `cfsProbability()` currently applies the same ladder to both.
-  - [ ] Still open: confirm the 50/50 weighting and "midway between CKTT1
-    and CHAT1" assumption against an actual course map (see human TODO
-    below) — currently the user's estimate, not measured.
+- [x] **Full IRONMAN swim-start CFS blend, with real course numbers** —
+  researched actual swim-start distances (nvdmcoaching / endurancenation
+  race guides, cross-checked against public river-mile data): CKTT1
+  (Chickamauga Dam) sits ~8 river miles upstream of CHAT1/Ross's Landing;
+  70.3 starts 1.4mi upstream of Ross's Landing (17.5% of that span), full
+  starts 2.4mi upstream (30% of that span). `upstreamWeight()` now uses
+  those real fractions instead of a guessed 50/50 — and applies to *both*
+  race types, not just full (70.3 gets a real, if small, 17.5% blend too).
+  Falls back to CHAT1-only whenever CKTT1 has no valid flow reading (the
+  common case). These are third-party-sourced, not from the primary
+  official athlete-guide PDF — reasonable confidence, not surveyed.
+  - [x] **Full-distance cancellation thresholds** — checked: full's cutoff
+    is 2:20 over its 2.4mi start distance (58.3 min/mi), 70.3's is 1:20 over
+    1.4mi (57.1 min/mi) — within ~2% of each other, full actually *slightly*
+    more forgiving per mile. `cfsProbability()` now applies that as a small
+    `paceScale` adjustment rather than a separate hand-picked ladder, since
+    the two distances turned out not to be meaningfully different on a
+    pace-cutoff basis. Re-open if real per-distance cancellation history
+    ever gives a stronger empirical signal than this.
 - [x] **CKTT1 upstream gauge** — wired in (`fetchUpstreamCfs()`), but NOAA's
   feed reports `secondary: -999` (no flow rating) for it essentially always
   in practice — this is apparently a known flaky/uncalibrated sensor at that
@@ -51,8 +59,8 @@
 - [ ] Decide whether to recruit real Chattanooga race alumni for a follow-up
   review after the simulated panel (real recruiting channel, incentive, and
   timeline are all open).
-- [ ] Confirm exact swim-start GPS/river-mile locations for both the 70.3
-  and full-distance courses (from official IRONMAN course maps) — the
-  "~1.2mi upstream, roughly midway between CKTT1 and CHAT1" figure is the
-  user's estimate, not yet verified against a course map or river-mile
-  chart.
+- [ ] Confirm swim-start distances/cutoffs against the **primary official
+  IRONMAN athlete guide PDF** — current numbers (1.4mi/1:20 for 70.3,
+  2.4mi/2:20 for full, 8mi CKTT1–CHAT1 span) came from third-party race-guide
+  sites and public river-mile data, cross-checked but not from IRONMAN's own
+  course-map PDF.
