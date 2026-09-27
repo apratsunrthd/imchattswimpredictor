@@ -106,16 +106,24 @@ async function fetchWeather() {
 
 // ─── Probability model ────────────────────────────────────────────────────────
 
+// Calibrated against the app's own recorded outcomes, not just guessed
+// brackets: the 2025 70.3 cancellation happened at "50,000+ CFS" (see
+// CANCEL_HISTORY) — that's the real failure threshold, not 35,000. The old
+// ladder put 35-45k CFS at just 4% base, which combined with any weather
+// penalty and the flat -9 discount floors straight to 1% ("cancelled") even
+// though full IRONMAN Chattanooga swam without incident on 2026-09-27 at
+// 37,000 CFS + moderate rain in the forecast. Brackets pushed out so the
+// model's danger zone actually starts near the real historical failure
+// point instead of ~15k CFS below it.
 function cfsProbability(cfs, raceType = "70.3") {
   const adjusted = cfs / paceScale(raceType);
-  if (adjusted < 8000)  return 97;
-  if (adjusted < 12000) return 88;
-  if (adjusted < 16000) return 72;
-  if (adjusted < 20000) return 52;
-  if (adjusted < 25000) return 28;
-  if (adjusted < 35000) return 12;
-  if (adjusted < 45000) return 4;
-  if (adjusted < 50000) return 2;
+  if (adjusted < 15000) return 97;
+  if (adjusted < 22000) return 88;
+  if (adjusted < 30000) return 72;
+  if (adjusted < 38000) return 50;
+  if (adjusted < 45000) return 28;
+  if (adjusted < 50000) return 12;
+  if (adjusted < 55000) return 4;
   return 1;
 }
 
@@ -640,17 +648,22 @@ export default function App() {
                 background:"transparent", transition:"background .2s",
                 animation:"fadeIn .5s ease both", animationDelay:`${.32+i*.06}s` }}>
                 <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-                  <span style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:22, color:"#94a3b8", flexShrink:0 }}>
-                    {row.year}
-                  </span>
-                  <span style={{ fontSize:12, color:"#94a3b8", fontWeight:500, flex:1 }}>{row.event}</span>
+                  <div style={{ display:"flex", alignItems:"baseline", gap:10, flex:1, minWidth:0 }}>
+                    <span style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:22, color:"#94a3b8",
+                      flexShrink:0, width:34 }}>
+                      {row.year}
+                    </span>
+                    <div style={{ minWidth:0 }}>
+                      <div style={{ fontSize:12, color:"#94a3b8", fontWeight:500 }}>{row.event}</div>
+                      <div style={{ fontSize:11, color:"#475569", marginTop:3, fontStyle:"italic" }}>
+                        {row.reason}
+                      </div>
+                    </div>
+                  </div>
                   <span style={{ background:`${row.color}18`, border:`1px solid ${row.color}40`,
                     color:row.color, borderRadius:6, padding:"4px 8px",
                     fontSize:9, fontFamily:"'JetBrains Mono',monospace",
                     letterSpacing:1, whiteSpace:"nowrap", fontWeight:700, flexShrink:0 }}>{row.badge}</span>
-                </div>
-                <div style={{ fontSize:11, color:"#475569", marginTop:4, fontStyle:"italic", marginLeft:44 }}>
-                  {row.reason}
                 </div>
               </div>
             ))}

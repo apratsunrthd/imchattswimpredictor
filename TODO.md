@@ -4,6 +4,29 @@
 
 ## Next up (Claude / model work)
 
+- [x] **CFS ladder recalibration** — 2026-09-27: full IRONMAN Chattanooga
+  swam without incident at 37,000 CFS + moderate rain in the forecast, but
+  the model showed 1% / "CANCELLED. It's tradition." The old ladder put
+  35-45k CFS at just 4% base, which combined with any weather penalty and
+  the flat -9 discount floors straight to 1% regardless of how mild
+  conditions actually are — a structural bug, not just bad luck. Recalibrated
+  `cfsProbability()`'s brackets against the app's own recorded ground truth:
+  the 2025 cancellation happened at 50,000+ CFS (see CANCEL_HISTORY), so
+  that's the real danger threshold, not ~35k. 37,000 CFS now scores 50% base
+  (29% final with today's weather) instead of 4% base (1% final). Still
+  leans pessimistic by design — this is not a claim of statistical rigor,
+  just removing a floor that was demonstrably wrong on its own terms.
+  - [ ] Still open: only one non-cancellation data point exists to calibrate
+    against (today). If more "swam fine at X CFS" outcomes get recorded
+    over time, revisit these brackets again — a proper history of
+    completed swims (not just the Hall of Shame's cancellations) would
+    make this a lot less single-point-dependent.
+- [x] **Hall of Shame row alignment** — year/event/reason text is now one
+  flex group so event name and reason text share an exact left edge by
+  construction (was a guessed `marginLeft:44` before), and year+event use
+  `alignItems:"baseline"` instead of `"center"` so the large Bebas Neue year
+  number lines up properly against the smaller event text instead of
+  looking vertically off.
 - [x] **Full IRONMAN swim-start CFS blend, with real course numbers** —
   researched actual swim-start distances (nvdmcoaching / endurancenation
   race guides, cross-checked against public river-mile data): CKTT1
