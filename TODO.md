@@ -4,26 +4,34 @@
 
 ## Next up (Claude / model work)
 
-- [ ] **Full IRONMAN support** — model a separate swim-start CFS estimate for
-  the full-distance race. Full swim starts ~1.2mi upstream of the 70.3 start,
-  roughly midway between `CKTT1` and `CHAT1`. Also needs its own
-  cancellation thresholds (full-distance swim cutoff time differs from
-  70.3's, so the same CFS carries different risk).
-- [ ] **CKTT1 upstream gauge integration** — blocked on a real data gap:
-  CKTT1 reports stage (ft) but not flow (CFS) via NOAA's API (`secondary`
-  is always `-999`). Before this can feed the probability model, research
-  either (a) TVA's own Chickamauga Dam generation/release data, or (b) a
-  stage-based proxy calibrated against historical CHAT1 correlation. Until
-  resolved, surface CKTT1 as a display-only leading-indicator/trend badge,
-  not a model input.
+- [x] **Full IRONMAN swim-start CFS blend** — `getEffectiveCfs()` blends
+  CKTT1 (upstream) and CHAT1 50/50 for `race.type === "full"`, falling back
+  to CHAT1-only whenever CKTT1 has no valid flow reading (the common case —
+  see below). Ready to start using CKTT1 automatically the moment it
+  reports real data again, no code change needed.
+  - [ ] Still open: full-distance-specific cancellation thresholds (its
+    swim cutoff time differs from 70.3's, so the same CFS carries different
+    risk) — `cfsProbability()` currently applies the same ladder to both.
+  - [ ] Still open: confirm the 50/50 weighting and "midway between CKTT1
+    and CHAT1" assumption against an actual course map (see human TODO
+    below) — currently the user's estimate, not measured.
+- [x] **CKTT1 upstream gauge** — wired in (`fetchUpstreamCfs()`), but NOAA's
+  feed reports `secondary: -999` (no flow rating) for it essentially always
+  in practice — this is apparently a known flaky/uncalibrated sensor at that
+  gauge, not a bug in our fetch. Code already ignores it whenever invalid
+  and shows a "CKTT1 upstream: unavailable" note on the full-IM tile instead
+  of silently guessing. If TVA's own dam-release data turns out to be more
+  reliable than waiting on NOAA's rating, that's still an open option to
+  revisit.
+- [ ] **Impeccable design/UX review** — run the `impeccable` skill against
+  the live UI. **Do this before the simulated panel** so the panel is
+  reviewing a polished product, not a rough one.
 - [ ] **Simulated triathlete review panel** — spawn ~10 subagent personas
   (varying experience level, risk tolerance, race history, tech-savviness)
-  to critique the app and probability model as a cheap proxy signal.
-  **Flag before running** — this is a large parallel subagent fan-out and
-  should get an explicit go-ahead per token-budget policy.
-- [ ] **Impeccable design/UX review** — run the `impeccable` skill against
-  the live UI once the toolchain is running locally (or against the
-  deployed GitHub Pages build).
+  to critique the app and probability model as a cheap proxy signal, after
+  the impeccable pass above. **Flag before running** — this is a large
+  parallel subagent fan-out and should get an explicit go-ahead per
+  token-budget policy.
 - [ ] Wire the USGS NWIS gauge 03568000 historical fallback (README already
   describes this; not implemented — `fetchRiverCfs` currently has no
   fallback path if NOAA is down).

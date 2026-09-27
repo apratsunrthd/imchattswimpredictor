@@ -51,16 +51,27 @@ Browser (React SPA)
   sometimes unset (`secondary: -999`); the fetch always scans backward for
   the last valid reading rather than trusting the array's last element.
 
+## Full IRONMAN swim-start estimate (implemented)
+
+The full-distance swim starts ~1.2mi upstream of the 70.3 start, roughly
+midway between `CKTT1` (Chickamauga Dam tailwater) and `CHAT1` (estimate,
+not yet verified against a course map). `getEffectiveCfs(chatCfs, upstreamCfs, raceType)`
+blends the two 50/50 when `raceType === "full"` and both readings are valid;
+otherwise (70.3, or CKTT1 unavailable) it's just the CHAT1 reading, same as
+before.
+
+CKTT1's flow field (`secondary`) is essentially always the `-999` sentinel in
+NOAA's feed — it isn't reliably rated for flow, only stage (`primary`, ft) —
+so `fetchUpstreamCfs()` returns `null` whenever that's the case and the app
+falls back to CHAT1-only automatically, with a small note on the full-IM
+tile ("CKTT1 upstream: unavailable"). No code change is needed if/when CKTT1
+starts reporting valid flow again — the blend picks it up the next fetch
+cycle.
+
 ## Planned extensions (not yet built — see TODO.md)
 
-- **Full IRONMAN swim-start estimate**: the full-distance swim starts ~1.2mi
-  upstream of the 70.3 start, roughly midway between `CKTT1` (Chickamauga Dam
-  tailwater) and `CHAT1`. Intent is to estimate conditions at that
-  intermediate point rather than reusing the CHAT1 (downstream) reading
-  as-is.
-- **CKTT1 as an upstream signal**: blocked on a real gap — CKTT1's flow
-  (`secondary`) field is always `-999` in NOAA's feed; only stage (`primary`,
-  ft) is populated. A CFS-to-CFS interpolation between CKTT1 and CHAT1 isn't
-  possible with this API alone. Needs either TVA's own dam-release data or a
-  stage-based proxy calibrated against CHAT1 history before it can feed the
-  probability math; until then it's a display-only trend indicator at best.
+- Full-distance-specific cancellation thresholds — `cfsProbability()` still
+  applies the same ladder to both race types, but the full's swim cutoff
+  time differs from 70.3's, so the same CFS likely carries different risk.
+- TVA's own Chickamauga Dam release data, as a possible alternative to
+  waiting on NOAA to rate CKTT1 for flow.

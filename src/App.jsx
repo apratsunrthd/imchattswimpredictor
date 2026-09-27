@@ -2,14 +2,45 @@ import { useState, useEffect, useCallback } from "react";
 
 // ─── Data fetching direct from public government APIs (no key, CORS-open) ────
 
-async function fetchRiverCfs() {
-  const res = await fetch("https://api.water.noaa.gov/nwps/v1/gauges/CHAT1/stageflow");
-  if (!res.ok) throw new Error(`NOAA ${res.status}`);
+async function fetchGaugeCfs(gaugeId) {
+  const res = await fetch(`https://api.water.noaa.gov/nwps/v1/gauges/${gaugeId}/stageflow`);
+  if (!res.ok) throw new Error(`NOAA ${gaugeId} ${res.status}`);
   const data = await res.json();
   const points = data.observed?.data ?? [];
   // Trailing points can be unset sentinels (secondary: -999) before the hourly reading lands.
   const latest = [...points].reverse().find(p => p.secondary >= 0);
   return latest ? Math.round(latest.secondary * 1000) : null;
+}
+
+function fetchRiverCfs() {
+  return fetchGaugeCfs("CHAT1");
+}
+
+// CKTT1 (Chickamauga Dam tailwater, upstream of CHAT1) has no reliable flow
+// rating on NOAA's feed — secondary is almost always the -999 sentinel, even
+// though the gauge is live and stage (primary) reports fine. fetchGaugeCfs
+// already filters that out and returns null when every point is invalid, so
+// this just needs to not blow up the rest of the app when that happens.
+async function fetchUpstreamCfs() {
+  try {
+    return await fetchGaugeCfs("CKTT1");
+  } catch {
+    return null;
+  }
+}
+
+// The full-distance swim starts ~1.2mi upstream of the 70.3 start, roughly
+// midway between CKTT1 and CHAT1 (estimate — pending confirmation against an
+// actual course map, see TODO.md). When CKTT1 has a real flow reading, blend
+// it in for that swim-start estimate; when it doesn't (the common case right
+// now), fall back to CHAT1 alone, same as the 70.3 model.
+const UPSTREAM_WEIGHT = 0.5;
+
+function getEffectiveCfs(chatCfs, upstreamCfs, raceType) {
+  if (raceType === "full" && chatCfs !== null && upstreamCfs !== null) {
+    return Math.round(upstreamCfs * UPSTREAM_WEIGHT + chatCfs * (1 - UPSTREAM_WEIGHT));
+  }
+  return chatCfs;
 }
 
 async function fetchWeather() {
@@ -159,6 +190,7 @@ function Pulse({ color="#4ade80" }) {
 
 export default function App() {
   const [cfs,            setCfs]           = useState(null);
+  const [upstreamCfs,    setUpstreamCfs]   = useState(null);
   const [weather,        setWeather]        = useState(null);
   const [loadingRiver,   setLoadingRiver]   = useState(true);
   const [loadingWeather, setLoadingWeather] = useState(true);
@@ -173,9 +205,9 @@ export default function App() {
     setErrorRiver(false);
     setErrorWeather(false);
 
-    fetchRiverCfs()
-      .then(v => { setCfs(v); setErrorRiver(v === null); })
-      .catch(() => { setErrorRiver(true); setCfs(null); })
+    Promise.all([fetchRiverCfs(), fetchUpstreamCfs()])
+      .then(([v, upstream]) => { setCfs(v); setUpstreamCfs(upstream); setErrorRiver(v === null); })
+      .catch(() => { setErrorRiver(true); setCfs(null); setUpstreamCfs(null); })
       .finally(() => setLoadingRiver(false));
 
     fetchWeather()
@@ -197,13 +229,15 @@ export default function App() {
 
   const loading   = loadingRiver || loadingWeather;
   const condition = weather?.condition ?? "clear";
-  const prob      = cfs !== null ? calcProbability(cfs, condition) : null;
-  const riverSt   = cfs !== null ? getRiverStatus(cfs) : null;
+  const race      = getCurrentRace();
+  const effectiveCfs = cfs !== null ? getEffectiveCfs(cfs, upstreamCfs, race.type) : null;
+  const usesUpstream = race.type === "full";
+  const prob      = effectiveCfs !== null ? calcProbability(effectiveCfs, condition) : null;
+  const riverSt   = effectiveCfs !== null ? getRiverStatus(effectiveCfs) : null;
   const verdict   = prob !== null ? getVerdict(prob) : null;
   const wMod      = WEATHER_MODIFIERS[condition] ?? WEATHER_MODIFIERS.clear;
-  const cfsDelta  = cfs !== null ? cfsProbability(cfs) : null;
+  const cfsDelta  = effectiveCfs !== null ? cfsProbability(effectiveCfs) : null;
   const fmtCountdown = `${Math.floor(countdown/60)}:${String(countdown%60).padStart(2,"0")}`;
-  const race      = getCurrentRace();
 
   return (
     <>
@@ -340,11 +374,18 @@ export default function App() {
                       <div style={{ fontFamily:"'JetBrains Mono',monospace",
                         fontSize:"clamp(20px,4vw,30px)", fontWeight:700,
                         color:riverSt.color, filter:`drop-shadow(0 0 6px ${riverSt.color})` }}>
-                        {cfs?.toLocaleString()}
+                        {effectiveCfs?.toLocaleString()}
                       </div>
                       <div style={{ fontSize:10, color:"#475569", letterSpacing:3, marginTop:3 }}>
                         CFS · {riverSt.label}
                       </div>
+                      {usesUpstream && (
+                        <div style={{ fontSize:9, color:"#334155", marginTop:4, fontFamily:"'JetBrains Mono',monospace" }}>
+                          {upstreamCfs !== null
+                            ? `↑ blended w/ CKTT1 upstream (${upstreamCfs.toLocaleString()} CFS)`
+                            : "↑ CKTT1 upstream: unavailable — using CHAT1 only"}
+                        </div>
+                      )}
                     </>
                   )}
                 </div>
@@ -384,7 +425,7 @@ export default function App() {
                   <div style={{ height:7, borderRadius:6, position:"relative",
                     background:"linear-gradient(90deg,#22c55e 0%,#a3e635 25%,#facc15 50%,#f97316 70%,#ef4444 85%,#dc2626 100%)" }}>
                     <div style={{
-                      position:"absolute", left:`${Math.min(98,(cfs/60000)*100)}%`,
+                      position:"absolute", left:`${Math.min(98,(effectiveCfs/60000)*100)}%`,
                       top:"50%", transform:"translate(-50%,-50%)",
                       width:13, height:13, background:"#fff", borderRadius:"50%",
                       border:`2px solid ${riverSt.color}`,
