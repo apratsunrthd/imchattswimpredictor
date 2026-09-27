@@ -1,50 +1,50 @@
 import { useState, useEffect, useCallback } from "react";
 
-// ─── Data fetching via Anthropic API (CSP blocks direct external fetches) ────
-
-async function callClaude(systemPrompt, userMessage) {
-  const res = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      model: "claude-sonnet-4-20250514",
-      max_tokens: 512,
-      tools: [{ type: "web_search_20250305", name: "web_search" }],
-      system: systemPrompt,
-      messages: [{ role: "user", content: userMessage }],
-    }),
-  });
-  if (!res.ok) throw new Error(`API ${res.status}`);
-  const data = await res.json();
-  const textBlock = [...(data.content || [])].reverse().find(b => b.type === "text");
-  if (!textBlock?.text) throw new Error("no text block");
-  const clean = textBlock.text.replace(/```json[\s\S]*?```|```/g, "").trim();
-  const match = clean.match(/\{[\s\S]*?\}/);
-  if (!match) throw new Error("no JSON found");
-  return JSON.parse(match[0]);
-}
+// ─── Data fetching direct from public government APIs (no key, CORS-open) ────
 
 async function fetchRiverCfs() {
-  const json = await callClaude(
-    `You are a data extraction bot. Search USGS for current river flow data, then respond ONLY with valid JSON: {"cfs": <number or null>}. No markdown, no explanation.`,
-    "What is the current Tennessee River discharge in cubic feet per second at USGS gauge 03568000 near Chattanooga TN? Return only JSON."
-  );
-  return typeof json.cfs === "number" ? Math.round(json.cfs) : null;
+  const res = await fetch("https://api.water.noaa.gov/nwps/v1/gauges/CHAT1/stageflow");
+  if (!res.ok) throw new Error(`NOAA ${res.status}`);
+  const data = await res.json();
+  const points = data.observed?.data ?? [];
+  // Trailing points can be unset sentinels (secondary: -999) before the hourly reading lands.
+  const latest = [...points].reverse().find(p => p.secondary >= 0);
+  return latest ? Math.round(latest.secondary * 1000) : null;
 }
 
 async function fetchWeather() {
-  const json = await callClaude(
-    `You are a weather data extraction bot. Search for current Chattanooga TN weather and 7-day forecast, then respond ONLY with valid JSON in this exact shape:
-{"summary": "<1 sentence>", "rainInchesNext7Days": <number or null>, "floodWarning": <true or false>, "condition": "<clear|light_rain|moderate_rain|heavy_rain|flood_warning>"}
-No markdown, no explanation. Pick condition based on: flood_warning if any active flood/flash flood watch or warning; heavy_rain if >2 inches total rain expected in 7 days; moderate_rain if 1-2 inches; light_rain if under 1 inch; clear otherwise.`,
-    "What is the current weather forecast for Chattanooga TN for the next 7 days? Any flood watches or warnings active? How much total rain is expected? Return only JSON."
+  const points = await fetch("https://api.weather.gov/points/35.0456,-85.3097").then(r => r.json());
+  const { forecast, forecastGridData } = points.properties;
+
+  const [daily, grid, alerts] = await Promise.all([
+    fetch(forecast).then(r => r.json()),
+    fetch(forecastGridData).then(r => r.json()),
+    fetch("https://api.weather.gov/alerts/active?area=TN").then(r => r.json()),
+  ]);
+
+  const summary = daily.properties?.periods?.[0]?.detailedForecast || "Forecast unavailable";
+
+  const now = Date.now();
+  const sevenDaysOut = now + 7 * 24 * 60 * 60 * 1000;
+  const precipMm = (grid.properties?.quantitativePrecipitation?.values ?? [])
+    .filter(v => {
+      const t = new Date(v.validTime.split("/")[0]).getTime();
+      return t >= now && t <= sevenDaysOut;
+    })
+    .reduce((sum, v) => sum + (v.value || 0), 0);
+  const rainInchesNext7Days = Math.round(precipMm * 0.0393701 * 10) / 10;
+
+  const floodWarning = (alerts.features ?? []).some(f =>
+    /flood/i.test(f.properties?.event ?? "") && (f.properties?.areaDesc ?? "").includes("Hamilton")
   );
-  return {
-    summary: json.summary || "Forecast unavailable",
-    rainInchesNext7Days: typeof json.rainInchesNext7Days === "number" ? json.rainInchesNext7Days : null,
-    floodWarning: json.floodWarning === true,
-    condition: json.condition || "clear",
-  };
+
+  const condition = floodWarning ? "flood_warning"
+    : rainInchesNext7Days > 2 ? "heavy_rain"
+    : rainInchesNext7Days > 1 ? "moderate_rain"
+    : rainInchesNext7Days > 0 ? "light_rain"
+    : "clear";
+
+  return { summary, rainInchesNext7Days, floodWarning, condition };
 }
 
 // ─── Probability model ────────────────────────────────────────────────────────
