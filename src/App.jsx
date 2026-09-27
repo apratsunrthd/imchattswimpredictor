@@ -1,63 +1,121 @@
 import { useState, useEffect, useCallback } from "react";
 
-// ─── Data fetching via Anthropic API (CSP blocks direct external fetches) ────
+// ─── Data fetching direct from public government APIs (no key, CORS-open) ────
 
-async function callClaude(systemPrompt, userMessage) {
-  const res = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      model: "claude-sonnet-4-20250514",
-      max_tokens: 512,
-      tools: [{ type: "web_search_20250305", name: "web_search" }],
-      system: systemPrompt,
-      messages: [{ role: "user", content: userMessage }],
-    }),
-  });
-  if (!res.ok) throw new Error(`API ${res.status}`);
+async function fetchGaugeCfs(gaugeId) {
+  const res = await fetch(`https://api.water.noaa.gov/nwps/v1/gauges/${gaugeId}/stageflow`);
+  if (!res.ok) throw new Error(`NOAA ${gaugeId} ${res.status}`);
   const data = await res.json();
-  const textBlock = [...(data.content || [])].reverse().find(b => b.type === "text");
-  if (!textBlock?.text) throw new Error("no text block");
-  const clean = textBlock.text.replace(/```json[\s\S]*?```|```/g, "").trim();
-  const match = clean.match(/\{[\s\S]*?\}/);
-  if (!match) throw new Error("no JSON found");
-  return JSON.parse(match[0]);
+  const points = data.observed?.data ?? [];
+  // Trailing points can be unset sentinels (secondary: -999) before the hourly reading lands.
+  const latest = [...points].reverse().find(p => p.secondary >= 0);
+  return latest ? Math.round(latest.secondary * 1000) : null;
 }
 
-async function fetchRiverCfs() {
-  const json = await callClaude(
-    `You are a data extraction bot. Search USGS for current river flow data, then respond ONLY with valid JSON: {"cfs": <number or null>}. No markdown, no explanation.`,
-    "What is the current Tennessee River discharge in cubic feet per second at USGS gauge 03568000 near Chattanooga TN? Return only JSON."
-  );
-  return typeof json.cfs === "number" ? Math.round(json.cfs) : null;
+function fetchRiverCfs() {
+  return fetchGaugeCfs("CHAT1");
+}
+
+// CKTT1 (Chickamauga Dam tailwater, upstream of CHAT1) has no reliable flow
+// rating on NOAA's feed — secondary is almost always the -999 sentinel, even
+// though the gauge is live and stage (primary) reports fine. fetchGaugeCfs
+// already filters that out and returns null when every point is invalid, so
+// this just needs to not blow up the rest of the app when that happens.
+async function fetchUpstreamCfs() {
+  try {
+    return await fetchGaugeCfs("CKTT1");
+  } catch {
+    return null;
+  }
+}
+
+// Swim course facts, sourced from IRONMAN/coaching race guides (nvdmcoaching,
+// endurancenation) cross-checked against public river-mile data — not the
+// primary official athlete-guide PDF, so treat as best-available rather than
+// surveyed. See ARCHITECTURE.md for sources.
+//   - CKTT1 (Chickamauga Dam tailwater) sits at Tennessee River Mile ~471.
+//   - CHAT1 / Ross's Landing (both swim finishes) is ~8 river miles
+//     downstream of the dam.
+//   - 70.3 swim starts 1.4mi upstream of Ross's Landing, cutoff 1:20 (80min).
+//   - Full swim starts 2.4mi upstream of Ross's Landing, cutoff 2:20 (140min).
+const GAUGE_SPAN_MILES = 8;
+const RACE_SWIM = {
+  "70.3": { upstreamMiles: 1.4, cutoffMinutes: 80 },
+  full:   { upstreamMiles: 2.4, cutoffMinutes: 140 },
+};
+
+// Fraction of the CKTT1→CHAT1 span the swim start sits at, i.e. how much of
+// the effective CFS should come from the upstream gauge vs CHAT1.
+function upstreamWeight(raceType) {
+  const miles = RACE_SWIM[raceType]?.upstreamMiles ?? 0;
+  return Math.min(1, miles / GAUGE_SPAN_MILES);
+}
+
+// Cutoff pace (minutes allowed per swim mile), relative to 70.3's. A race
+// with a more generous per-mile cutoff can tolerate a given CFS with less
+// risk, so its threshold ladder should read that CFS as slightly less severe.
+function paceScale(raceType) {
+  const race = RACE_SWIM[raceType];
+  const base = RACE_SWIM["70.3"];
+  if (!race) return 1;
+  return (race.cutoffMinutes / race.upstreamMiles) / (base.cutoffMinutes / base.upstreamMiles);
+}
+
+function getEffectiveCfs(chatCfs, upstreamCfs, raceType) {
+  const weight = upstreamWeight(raceType);
+  if (weight > 0 && chatCfs !== null && upstreamCfs !== null) {
+    return Math.round(upstreamCfs * weight + chatCfs * (1 - weight));
+  }
+  return chatCfs;
 }
 
 async function fetchWeather() {
-  const json = await callClaude(
-    `You are a weather data extraction bot. Search for current Chattanooga TN weather and 7-day forecast, then respond ONLY with valid JSON in this exact shape:
-{"summary": "<1 sentence>", "rainInchesNext7Days": <number or null>, "floodWarning": <true or false>, "condition": "<clear|light_rain|moderate_rain|heavy_rain|flood_warning>"}
-No markdown, no explanation. Pick condition based on: flood_warning if any active flood/flash flood watch or warning; heavy_rain if >2 inches total rain expected in 7 days; moderate_rain if 1-2 inches; light_rain if under 1 inch; clear otherwise.`,
-    "What is the current weather forecast for Chattanooga TN for the next 7 days? Any flood watches or warnings active? How much total rain is expected? Return only JSON."
+  const points = await fetch("https://api.weather.gov/points/35.0456,-85.3097").then(r => r.json());
+  const { forecast, forecastGridData } = points.properties;
+
+  const [daily, grid, alerts] = await Promise.all([
+    fetch(forecast).then(r => r.json()),
+    fetch(forecastGridData).then(r => r.json()),
+    fetch("https://api.weather.gov/alerts/active?area=TN").then(r => r.json()),
+  ]);
+
+  const summary = daily.properties?.periods?.[0]?.detailedForecast || "Forecast unavailable";
+
+  const now = Date.now();
+  const sevenDaysOut = now + 7 * 24 * 60 * 60 * 1000;
+  const precipMm = (grid.properties?.quantitativePrecipitation?.values ?? [])
+    .filter(v => {
+      const t = new Date(v.validTime.split("/")[0]).getTime();
+      return t >= now && t <= sevenDaysOut;
+    })
+    .reduce((sum, v) => sum + (v.value || 0), 0);
+  const rainInchesNext7Days = Math.round(precipMm * 0.0393701 * 10) / 10;
+
+  const floodWarning = (alerts.features ?? []).some(f =>
+    /flood/i.test(f.properties?.event ?? "") && (f.properties?.areaDesc ?? "").includes("Hamilton")
   );
-  return {
-    summary: json.summary || "Forecast unavailable",
-    rainInchesNext7Days: typeof json.rainInchesNext7Days === "number" ? json.rainInchesNext7Days : null,
-    floodWarning: json.floodWarning === true,
-    condition: json.condition || "clear",
-  };
+
+  const condition = floodWarning ? "flood_warning"
+    : rainInchesNext7Days > 2 ? "heavy_rain"
+    : rainInchesNext7Days > 1 ? "moderate_rain"
+    : rainInchesNext7Days > 0 ? "light_rain"
+    : "clear";
+
+  return { summary, rainInchesNext7Days, floodWarning, condition };
 }
 
 // ─── Probability model ────────────────────────────────────────────────────────
 
-function cfsProbability(cfs) {
-  if (cfs < 8000)  return 97;
-  if (cfs < 12000) return 88;
-  if (cfs < 16000) return 72;
-  if (cfs < 20000) return 52;
-  if (cfs < 25000) return 28;
-  if (cfs < 35000) return 12;
-  if (cfs < 45000) return 4;
-  if (cfs < 50000) return 2;
+function cfsProbability(cfs, raceType = "70.3") {
+  const adjusted = cfs / paceScale(raceType);
+  if (adjusted < 8000)  return 97;
+  if (adjusted < 12000) return 88;
+  if (adjusted < 16000) return 72;
+  if (adjusted < 20000) return 52;
+  if (adjusted < 25000) return 28;
+  if (adjusted < 35000) return 12;
+  if (adjusted < 45000) return 4;
+  if (adjusted < 50000) return 2;
   return 1;
 }
 
@@ -69,8 +127,8 @@ const WEATHER_MODIFIERS = {
   flood_warning: { delta: -35, label: "⚠️ Flood warning active", icon: "🚨",  color: "#ef4444" },
 };
 
-function calcProbability(cfs, weatherCondition) {
-  const base = cfsProbability(cfs);
+function calcProbability(cfs, weatherCondition, raceType = "70.3") {
+  const base = cfsProbability(cfs, raceType);
   const weatherDelta = WEATHER_MODIFIERS[weatherCondition]?.delta ?? 0;
   return Math.max(1, base + weatherDelta - 9); // Chattanooga Discount™
 }
@@ -159,6 +217,7 @@ function Pulse({ color="#4ade80" }) {
 
 export default function App() {
   const [cfs,            setCfs]           = useState(null);
+  const [upstreamCfs,    setUpstreamCfs]   = useState(null);
   const [weather,        setWeather]        = useState(null);
   const [loadingRiver,   setLoadingRiver]   = useState(true);
   const [loadingWeather, setLoadingWeather] = useState(true);
@@ -173,9 +232,9 @@ export default function App() {
     setErrorRiver(false);
     setErrorWeather(false);
 
-    fetchRiverCfs()
-      .then(v => { setCfs(v); setErrorRiver(v === null); })
-      .catch(() => { setErrorRiver(true); setCfs(null); })
+    Promise.all([fetchRiverCfs(), fetchUpstreamCfs()])
+      .then(([v, upstream]) => { setCfs(v); setUpstreamCfs(upstream); setErrorRiver(v === null); })
+      .catch(() => { setErrorRiver(true); setCfs(null); setUpstreamCfs(null); })
       .finally(() => setLoadingRiver(false));
 
     fetchWeather()
@@ -197,13 +256,15 @@ export default function App() {
 
   const loading   = loadingRiver || loadingWeather;
   const condition = weather?.condition ?? "clear";
-  const prob      = cfs !== null ? calcProbability(cfs, condition) : null;
-  const riverSt   = cfs !== null ? getRiverStatus(cfs) : null;
+  const race      = getCurrentRace();
+  const effectiveCfs = cfs !== null ? getEffectiveCfs(cfs, upstreamCfs, race.type) : null;
+  const usesUpstream = upstreamWeight(race.type) > 0;
+  const prob      = effectiveCfs !== null ? calcProbability(effectiveCfs, condition, race.type) : null;
+  const riverSt   = effectiveCfs !== null ? getRiverStatus(effectiveCfs) : null;
   const verdict   = prob !== null ? getVerdict(prob) : null;
   const wMod      = WEATHER_MODIFIERS[condition] ?? WEATHER_MODIFIERS.clear;
-  const cfsDelta  = cfs !== null ? cfsProbability(cfs) : null;
+  const cfsDelta  = effectiveCfs !== null ? cfsProbability(effectiveCfs, race.type) : null;
   const fmtCountdown = `${Math.floor(countdown/60)}:${String(countdown%60).padStart(2,"0")}`;
-  const race      = getCurrentRace();
 
   return (
     <>
@@ -340,11 +401,18 @@ export default function App() {
                       <div style={{ fontFamily:"'JetBrains Mono',monospace",
                         fontSize:"clamp(20px,4vw,30px)", fontWeight:700,
                         color:riverSt.color, filter:`drop-shadow(0 0 6px ${riverSt.color})` }}>
-                        {cfs?.toLocaleString()}
+                        {effectiveCfs?.toLocaleString()}
                       </div>
                       <div style={{ fontSize:10, color:"#475569", letterSpacing:3, marginTop:3 }}>
                         CFS · {riverSt.label}
                       </div>
+                      {usesUpstream && (
+                        <div style={{ fontSize:9, color:"#334155", marginTop:4, fontFamily:"'JetBrains Mono',monospace" }}>
+                          {upstreamCfs !== null
+                            ? `↑ blended w/ CKTT1 upstream (${upstreamCfs.toLocaleString()} CFS)`
+                            : "↑ CKTT1 upstream: unavailable — using CHAT1 only"}
+                        </div>
+                      )}
                     </>
                   )}
                 </div>
@@ -384,7 +452,7 @@ export default function App() {
                   <div style={{ height:7, borderRadius:6, position:"relative",
                     background:"linear-gradient(90deg,#22c55e 0%,#a3e635 25%,#facc15 50%,#f97316 70%,#ef4444 85%,#dc2626 100%)" }}>
                     <div style={{
-                      position:"absolute", left:`${Math.min(98,(cfs/60000)*100)}%`,
+                      position:"absolute", left:`${Math.min(98,(effectiveCfs/60000)*100)}%`,
                       top:"50%", transform:"translate(-50%,-50%)",
                       width:13, height:13, background:"#fff", borderRadius:"50%",
                       border:`2px solid ${riverSt.color}`,
