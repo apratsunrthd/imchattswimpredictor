@@ -120,11 +120,11 @@ function cfsProbability(cfs, raceType = "70.3") {
 }
 
 const WEATHER_MODIFIERS = {
-  clear:         { delta:   0, label: "Clear skies",             icon: "☀️",  color: "#4ade80" },
-  light_rain:    { delta:  -5, label: "Light rain expected",     icon: "🌦️",  color: "#a3e635" },
-  moderate_rain: { delta: -12, label: "Moderate rain ahead",     icon: "🌧️",  color: "#facc15" },
-  heavy_rain:    { delta: -22, label: "Heavy rain forecast",     icon: "⛈️",  color: "#f97316" },
-  flood_warning: { delta: -35, label: "⚠️ Flood warning active", icon: "🚨",  color: "#ef4444" },
+  clear:         { delta:   0, label: "Clear skies",             icon: "sun",             color: "#4ade80" },
+  light_rain:    { delta:  -5, label: "Light rain expected",     icon: "cloud-drizzle",   color: "#a3e635" },
+  moderate_rain: { delta: -12, label: "Moderate rain ahead",     icon: "cloud-rain",      color: "#facc15" },
+  heavy_rain:    { delta: -22, label: "Heavy rain forecast",     icon: "cloud-lightning", color: "#f97316" },
+  flood_warning: { delta: -35, label: "Flood warning active",   icon: "alert-triangle",  color: "#ef4444" },
 };
 
 function calcProbability(cfs, weatherCondition, raceType = "70.3") {
@@ -141,7 +141,11 @@ const RACES = [
 ];
 function getCurrentRace() {
   const now = new Date();
-  return RACES.find(r => now < r.date) ?? RACES[RACES.length - 1];
+  // Keep a race "current" through its own race day (date-only strings parse
+  // as UTC midnight, so a naive `now < date` check flips to the next race
+  // hours before the current one is actually over).
+  const ONE_DAY = 24 * 60 * 60 * 1000;
+  return RACES.find(r => now < new Date(r.date.getTime() + ONE_DAY)) ?? RACES[RACES.length - 1];
 }
 
 // ─── Static data ──────────────────────────────────────────────────────────────
@@ -153,6 +157,118 @@ const CANCEL_HISTORY = [
   { year: 2019, event: "70.3 Chattanooga",     reason: "High river flow",                badge: "SHORTENED",        color: "#f97316" },
   { year: 2018, event: "IRONMAN Chattanooga",  reason: "High water / flooding",          badge: "CANCELLED",        color: "#ef4444" },
 ];
+
+// ─── Icons (authored inline, single stroke/fill weight — no emoji) ───────────
+
+function Icon({ name, size = 20, color = "currentColor", style }) {
+  const common = { width: size, height: size, viewBox: "0 0 24 24", style };
+
+  if (name === "sun") return (
+    <svg {...common} fill="none" stroke={color} strokeWidth="1.75" strokeLinecap="round">
+      <circle cx="12" cy="12" r="4"/>
+      <line x1="12" y1="2" x2="12" y2="4"/><line x1="12" y1="20" x2="12" y2="22"/>
+      <line x1="2" y1="12" x2="4" y2="12"/><line x1="20" y1="12" x2="22" y2="12"/>
+      <line x1="4.9" y1="4.9" x2="6.3" y2="6.3"/><line x1="17.7" y1="17.7" x2="19.1" y2="19.1"/>
+      <line x1="4.9" y1="19.1" x2="6.3" y2="17.7"/><line x1="17.7" y1="6.3" x2="19.1" y2="4.9"/>
+    </svg>
+  );
+
+  if (name === "cloud-drizzle" || name === "cloud-rain" || name === "cloud-lightning") return (
+    <svg {...common}>
+      <circle cx="9" cy="12" r="3.4" fill={color}/>
+      <circle cx="13.5" cy="10" r="4.2" fill={color}/>
+      <circle cx="17" cy="12.3" r="2.6" fill={color}/>
+      <rect x="6" y="12" width="12.5" height="4" rx="2" fill={color}/>
+      {name === "cloud-drizzle" && (
+        <g stroke={color} strokeWidth="1.75" strokeLinecap="round">
+          <line x1="9" y1="19" x2="9" y2="21"/><line x1="14" y1="19" x2="14" y2="21"/>
+        </g>
+      )}
+      {name === "cloud-rain" && (
+        <g stroke={color} strokeWidth="1.75" strokeLinecap="round">
+          <line x1="8" y1="19" x2="7.3" y2="22"/><line x1="12" y1="19" x2="11.3" y2="22"/><line x1="16" y1="19" x2="15.3" y2="22"/>
+        </g>
+      )}
+      {name === "cloud-lightning" && <polygon points="13,16 9.5,21 12,21 10.5,23.5" fill={color}/>}
+    </svg>
+  );
+
+  if (name === "alert-triangle") return (
+    <svg {...common} fill="none" stroke={color} strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 3 2 20h20z"/>
+      <line x1="12" y1="9" x2="12" y2="13"/>
+      <circle cx="12" cy="16.3" r="0.9" fill={color} stroke="none"/>
+    </svg>
+  );
+
+  if (name === "footprint") return (
+    <svg {...common} fill="none" stroke={color} strokeWidth="1.75">
+      <ellipse cx="9.5" cy="16" rx="3" ry="4"/>
+      <ellipse cx="14.7" cy="8" rx="2.3" ry="3" transform="rotate(20 14.7 8)"/>
+    </svg>
+  );
+
+  if (name === "bike") return (
+    <svg {...common} fill="none" stroke={color} strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="6" cy="17" r="3.2"/><circle cx="18" cy="17" r="3.2"/>
+      <path d="M6 17 10 8h4l4 9M10 8l3 9M13 17h5"/>
+    </svg>
+  );
+
+  if (name === "skull") return (
+    <svg {...common}>
+      <circle cx="12" cy="10.5" r="6.5" fill={color}/>
+      <rect x="8.5" y="14" width="7" height="5" rx="2" fill={color}/>
+      <circle cx="9.3" cy="10" r="1.6" fill="#06090f"/><circle cx="14.7" cy="10" r="1.6" fill="#06090f"/>
+      <g stroke="#06090f" strokeWidth="1.2" strokeLinecap="round">
+        <line x1="10" y1="18.5" x2="10" y2="20"/><line x1="12" y1="18.5" x2="12" y2="20"/><line x1="14" y1="18.5" x2="14" y2="20"/>
+      </g>
+    </svg>
+  );
+
+  if (name === "meh") return (
+    <svg {...common} fill="none" stroke={color} strokeWidth="1.75" strokeLinecap="round">
+      <circle cx="12" cy="12" r="9"/>
+      <circle cx="9" cy="10" r="1" fill={color} stroke="none"/><circle cx="15" cy="10" r="1" fill={color} stroke="none"/>
+      <line x1="8" y1="15.5" x2="16" y2="15.5"/>
+    </svg>
+  );
+
+  if (name === "map-pin") return (
+    <svg {...common} fill="none" stroke={color} strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 21s-7-6.2-7-11a7 7 0 1 1 14 0c0 4.8-7 11-7 11z"/>
+      <circle cx="12" cy="10" r="2.4"/>
+    </svg>
+  );
+
+  if (name === "wave") return (
+    <svg {...common} fill="none" stroke={color} strokeWidth="1.75" strokeLinecap="round">
+      <path d="M2 13c1.8-2.6 3.6-2.6 5.4 0s3.6 2.6 5.4 0 3.6-2.6 5.4 0 3.6 2.6 5.4 0"/>
+      <path d="M2 18c1.8-2.6 3.6-2.6 5.4 0s3.6 2.6 5.4 0 3.6-2.6 5.4 0 3.6 2.6 5.4 0" opacity="0.45"/>
+    </svg>
+  );
+
+  if (name === "hourglass") return (
+    <svg {...common} fill="none" stroke={color} strokeWidth="1.75" strokeLinejoin="round">
+      <path d="M6 3h12l-6 9z"/><path d="M6 21h12l-6-9z"/>
+    </svg>
+  );
+
+  if (name === "check") return (
+    <svg {...common} fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="20 6 9 17 4 12"/>
+    </svg>
+  );
+
+  if (name === "refresh") return (
+    <svg {...common} fill="none" stroke={color} strokeWidth="1.9" strokeLinecap="round">
+      <path d="M4 12a8 8 0 0 1 13.66-5.66M20 4v5h-5"/>
+      <path d="M20 12a8 8 0 0 1-13.66 5.66M4 20v-5h5"/>
+    </svg>
+  );
+
+  return null;
+}
 
 // ─── UI helpers ───────────────────────────────────────────────────────────────
 
@@ -166,12 +282,12 @@ function getRiverStatus(cfs) {
 }
 
 function getVerdict(prob) {
-  if (prob >= 85) return { text: "Looks good. Don't tell anyone.",  icon: "🏊‍♂️", sub: "Jinxing it is a real risk." };
-  if (prob >= 65) return { text: "Nervous optimism.",               icon: "😬",   sub: "Probably fine. Probably." };
-  if (prob >= 40) return { text: "Pack your running shoes.",        icon: "👟",   sub: "Might become a duathlon." };
-  if (prob >= 20) return { text: "Just stretch for the bike.",      icon: "🚴",   sub: "The river has opinions." };
-  if (prob >= 8)  return { text: "Honestly, just bring the bike.",  icon: "🚲",   sub: "History is not encouraging." };
-  return               { text: "CANCELLED. It's tradition.",      icon: "💀",   sub: "The river wins again." };
+  if (prob >= 85) return { text: "Looks good. Don't tell anyone.",  icon: "wave",      sub: "Jinxing it is a real risk." };
+  if (prob >= 65) return { text: "Nervous optimism.",               icon: "meh",       sub: "Probably fine. Probably." };
+  if (prob >= 40) return { text: "Pack your running shoes.",        icon: "footprint", sub: "Might become a duathlon." };
+  if (prob >= 20) return { text: "Just stretch for the bike.",      icon: "bike",      sub: "The river has opinions." };
+  if (prob >= 8)  return { text: "Honestly, just bring the bike.",  icon: "bike",      sub: "History is not encouraging." };
+  return               { text: "CANCELLED. It's tradition.",      icon: "skull",     sub: "The river wins again." };
 }
 
 function ProbabilityRing({ prob }) {
@@ -274,7 +390,6 @@ export default function App() {
         body{background:#06090f;}
         @keyframes pulse{0%,100%{opacity:1;transform:scale(1);}50%{opacity:.4;transform:scale(.75);}}
         @keyframes fadeIn{from{opacity:0;transform:translateY(14px);}to{opacity:1;transform:translateY(0);}}
-        @keyframes shimmer{0%{background-position:-200% center;}100%{background-position:200% center;}}
         @keyframes flicker{0%,97%,100%{opacity:1;}98.5%{opacity:.75;}}
         @keyframes spin{from{transform:rotate(270deg);}to{transform:rotate(630deg);}}
         .card{animation:fadeIn .55s ease both;}
@@ -283,25 +398,23 @@ export default function App() {
       `}</style>
 
       <div style={{ minHeight:"100vh", background:"#06090f", fontFamily:"'Inter',sans-serif",
-        color:"#e2e8f0", padding:"32px 16px 64px", maxWidth:700, margin:"0 auto" }}>
+        color:"#e2e8f0", padding:"32px 16px 64px", maxWidth:700, margin:"0 auto", overflowX:"hidden" }}>
 
         {/* Header */}
         <div className="card" style={{ textAlign:"center", marginBottom:36 }}>
           <div style={{
             fontFamily:"'Bebas Neue',sans-serif", fontSize:"clamp(28px,7vw,52px)", letterSpacing:4,
-            background:"linear-gradient(90deg,#f97316,#fbbf24,#f97316)",
-            backgroundSize:"200% auto", WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent",
-            animation:"shimmer 4s linear infinite"
+            lineHeight:1.15, color:"#f97316"
           }}>Will the Swim Happen?</div>
           <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:"clamp(11px,2.5vw,16px)",
-            letterSpacing:5, color:"#334155", marginTop:4 }}>
+            letterSpacing:5, color:"#475569", marginTop:4 }}>
             {race.name.toUpperCase()} {race.year} — OFFICIAL PESSIMISM DASHBOARD
           </div>
           <div style={{ marginTop:6, fontFamily:"'JetBrains Mono',monospace", fontSize:11,
-            color:"#f97316", letterSpacing:2, opacity:.7 }}>
+            color:"#f97316", letterSpacing:2, opacity:.9 }}>
             PREDICTING FOR: {race.name} · {race.label}
           </div>
-          <div style={{ marginTop:8, fontSize:12, color:"#1e293b", fontFamily:"'JetBrains Mono',monospace" }}>
+          <div style={{ marginTop:8, fontSize:12, color:"#334155", fontFamily:"'Inter',sans-serif" }}>
             Live river · Live weather · Refreshes every 5 min
           </div>
         </div>
@@ -320,28 +433,32 @@ export default function App() {
               <LoadingRing/>
               <div style={{ marginTop:22, fontFamily:"'JetBrains Mono',monospace",
                 fontSize:12, color:"#334155", lineHeight:2.2 }}>
-                <div style={{ color: loadingRiver  ? "#f97316" : "#22c55e" }}>
-                  {loadingRiver  ? "⏳ Checking Tennessee River flow…" : "✓ River data loaded"}
+                <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:6,
+                  color: loadingRiver ? "#f97316" : "#22c55e" }}>
+                  <Icon name={loadingRiver ? "hourglass" : "check"} size={13} color={loadingRiver ? "#f97316" : "#22c55e"}/>
+                  <span>{loadingRiver ? "Checking Tennessee River flow…" : "River data loaded"}</span>
                 </div>
-                <div style={{ color: loadingWeather ? "#f97316" : "#22c55e" }}>
-                  {loadingWeather ? "⏳ Checking Chattanooga forecast…" : "✓ Weather loaded"}
-                </div>
-                <div style={{ marginTop:10, color:"#1e293b", fontSize:10 }}>
-                  (web search takes ~10 seconds — hang tight)
+                <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:6,
+                  color: loadingWeather ? "#f97316" : "#22c55e" }}>
+                  <Icon name={loadingWeather ? "hourglass" : "check"} size={13} color={loadingWeather ? "#f97316" : "#22c55e"}/>
+                  <span>{loadingWeather ? "Checking Chattanooga forecast…" : "Weather loaded"}</span>
                 </div>
               </div>
             </div>
           ) : prob === null ? (
             <div style={{ textAlign:"center", padding:"40px 0" }}>
-              <div style={{ fontSize:42, marginBottom:12 }}>🌊</div>
-              <div style={{ color:"#94a3b8", fontFamily:"'JetBrains Mono',monospace", fontSize:13, lineHeight:2 }}>
+              <div style={{ display:"flex", justifyContent:"center", marginBottom:12 }}>
+                <Icon name="wave" size={44} color="#475569"/>
+              </div>
+              <div style={{ color:"#94a3b8", fontFamily:"'Inter',sans-serif", fontSize:13, lineHeight:2 }}>
                 River data unavailable.<br/>Much like the swim.
               </div>
               <button className="refresh-btn" onClick={fetchAll} style={{
                 marginTop:20, background:"#0f172a", border:"1px solid #1e293b",
                 borderRadius:8, color:"#64748b", padding:"8px 20px",
-                fontSize:12, cursor:"pointer", fontFamily:"'JetBrains Mono',monospace" }}>
-                ↻ Try again
+                fontSize:12, cursor:"pointer", fontFamily:"'JetBrains Mono',monospace",
+                display:"inline-flex", alignItems:"center", gap:6 }}>
+                <Icon name="refresh" size={12} color="#64748b"/>Try again
               </button>
             </div>
           ) : (
@@ -350,7 +467,9 @@ export default function App() {
 
               {/* Verdict */}
               <div style={{ textAlign:"center", marginTop:26 }}>
-                <div style={{ fontSize:38, marginBottom:8 }}>{verdict.icon}</div>
+                <div style={{ display:"flex", justifyContent:"center", marginBottom:8 }}>
+                  <Icon name={verdict.icon} size={38} color="#f1f5f9"/>
+                </div>
                 <div style={{ fontFamily:"'Bebas Neue',sans-serif",
                   fontSize:"clamp(20px,5vw,30px)", letterSpacing:2,
                   color:"#f1f5f9", animation:"flicker 7s infinite" }}>{verdict.text}</div>
@@ -393,7 +512,7 @@ export default function App() {
                   border:`1px solid ${riverSt?.color ?? "#1e293b"}28`,
                   borderRadius:12, padding:"14px", textAlign:"center" }}>
                   {errorRiver ? (
-                    <div style={{ color:"#334155", fontSize:11, fontFamily:"'JetBrains Mono',monospace" }}>
+                    <div style={{ color:"#64748b", fontSize:11, fontFamily:"'JetBrains Mono',monospace" }}>
                       River data unavailable
                     </div>
                   ) : (
@@ -419,12 +538,14 @@ export default function App() {
                 <div style={{ background:"#0a0f1a", border:`1px solid ${wMod.color}28`,
                   borderRadius:12, padding:"14px", textAlign:"center" }}>
                   {errorWeather ? (
-                    <div style={{ color:"#334155", fontSize:11, fontFamily:"'JetBrains Mono',monospace" }}>
+                    <div style={{ color:"#64748b", fontSize:11, fontFamily:"'JetBrains Mono',monospace" }}>
                       Weather unavailable
                     </div>
                   ) : (
                     <>
-                      <div style={{ fontSize:26 }}>{wMod.icon}</div>
+                      <div style={{ display:"flex", justifyContent:"center" }}>
+                        <Icon name={wMod.icon} size={28} color={wMod.color}/>
+                      </div>
                       <div style={{ fontFamily:"'JetBrains Mono',monospace", fontSize:10,
                         color:wMod.color, letterSpacing:2, marginTop:5 }}>
                         {weather?.rainInchesNext7Days != null
@@ -439,10 +560,11 @@ export default function App() {
               {/* Weather summary */}
               {weather?.summary && !errorWeather && (
                 <div style={{ marginTop:10, background:"#0a0f1a", border:"1px solid #1e293b",
-                  borderRadius:12, padding:"11px 15px",
-                  fontFamily:"'JetBrains Mono',monospace", fontSize:11,
-                  color:"#475569", fontStyle:"italic", lineHeight:1.6 }}>
-                  📍 {weather.summary}
+                  borderRadius:12, padding:"11px 15px", display:"flex", gap:8, alignItems:"flex-start",
+                  fontFamily:"'Inter',sans-serif", fontSize:11,
+                  color:"#64748b", fontStyle:"italic", lineHeight:1.6 }}>
+                  <Icon name="map-pin" size={13} color="#475569" style={{ flexShrink:0, marginTop:3 }}/>
+                  <span>{weather.summary}</span>
                 </div>
               )}
 
@@ -460,7 +582,7 @@ export default function App() {
                     }}/>
                   </div>
                   <div style={{ display:"flex", justifyContent:"space-between", marginTop:4,
-                    fontFamily:"'JetBrains Mono',monospace", fontSize:10, color:"#1e293b" }}>
+                    fontFamily:"'JetBrains Mono',monospace", fontSize:10, color:"#475569" }}>
                     <span>0</span><span>20K safe</span><span>40K</span><span>60K+ cancel</span>
                   </div>
                 </div>
@@ -480,25 +602,26 @@ export default function App() {
               {loading ? "FETCHING" : "LIVE"}
             </span>
             {lastUpdated && !loading && (
-              <span style={{ fontFamily:"'JetBrains Mono',monospace", fontSize:11, color:"#334155" }}>
+              <span style={{ fontFamily:"'JetBrains Mono',monospace", fontSize:11, color:"#64748b" }}>
                 · {lastUpdated.toLocaleTimeString()}
               </span>
             )}
           </div>
           <div style={{ display:"flex", alignItems:"center", gap:10, flex:1, minWidth:120 }}>
             <div style={{ flex:1, height:3, background:"#1e293b", borderRadius:4, overflow:"hidden" }}>
-              <div style={{ height:"100%", width:`${((300-countdown)/300)*100}%`,
-                background:"linear-gradient(90deg,#f97316,#facc15)", transition:"width 1s linear" }}/>
+              <div style={{ height:"100%", width:"100%", transformOrigin:"left",
+                transform:`scaleX(${(300-countdown)/300})`,
+                background:"linear-gradient(90deg,#f97316,#facc15)", transition:"transform 1s linear" }}/>
             </div>
             <span style={{ fontFamily:"'JetBrains Mono',monospace", fontSize:10,
-              color:"#334155", whiteSpace:"nowrap" }}>{fmtCountdown}</span>
+              color:"#64748b", whiteSpace:"nowrap" }}>{fmtCountdown}</span>
           </div>
           <button className="refresh-btn" onClick={fetchAll} disabled={loading} style={{
             background:"#0f172a", border:"1px solid #1e293b", borderRadius:8,
             color: loading ? "#1e293b" : "#64748b", padding:"5px 12px", fontSize:11,
-            cursor: loading ? "default" : "pointer",
+            cursor: loading ? "default" : "pointer", display:"inline-flex", alignItems:"center", gap:6,
             fontFamily:"'JetBrains Mono',monospace", letterSpacing:1, transition:"all .2s" }}>
-            ↻ REFRESH
+            <Icon name="refresh" size={11} color={loading ? "#1e293b" : "#64748b"}/>REFRESH
           </button>
         </div>
 
@@ -506,48 +629,50 @@ export default function App() {
         <div className="card" style={{ animationDelay:".28s" }}>
           <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:20, letterSpacing:4,
             color:"#475569", marginBottom:12, display:"flex", alignItems:"center", gap:10 }}>
-            <span style={{ color:"#f97316" }}>▌</span> HALL OF SHAME
+            <span style={{ display:"inline-block", width:4, height:18, background:"#f97316", borderRadius:2 }}/>
+            HALL OF SHAME
           </div>
           <div style={{ background:"#0d1117", border:"1px solid #1e293b", borderRadius:16, overflow:"hidden" }}>
-            <div style={{ display:"grid", gridTemplateColumns:"60px 1fr auto",
-              padding:"10px 16px", borderBottom:"1px solid #1e293b",
-              fontFamily:"'JetBrains Mono',monospace", fontSize:10,
-              color:"#334155", letterSpacing:2, textTransform:"uppercase" }}>
-              <span>Year</span><span>Reason</span><span>Verdict</span>
-            </div>
             {CANCEL_HISTORY.map((row, i) => (
               <div key={row.year} className="cancel-row" style={{
-                display:"grid", gridTemplateColumns:"60px 1fr auto", gap:8,
                 padding:"13px 16px",
                 borderBottom: i < CANCEL_HISTORY.length-1 ? "1px solid #0a0f1a" : "none",
-                alignItems:"center", background:"transparent", transition:"background .2s",
+                background:"transparent", transition:"background .2s",
                 animation:"fadeIn .5s ease both", animationDelay:`${.32+i*.06}s` }}>
-                <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:22, color:"#94a3b8" }}>
-                  {row.year}
+                <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+                  <span style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:22, color:"#94a3b8", flexShrink:0 }}>
+                    {row.year}
+                  </span>
+                  <span style={{ fontSize:12, color:"#94a3b8", fontWeight:500, flex:1 }}>{row.event}</span>
+                  <span style={{ background:`${row.color}18`, border:`1px solid ${row.color}40`,
+                    color:row.color, borderRadius:6, padding:"4px 8px",
+                    fontSize:9, fontFamily:"'JetBrains Mono',monospace",
+                    letterSpacing:1, whiteSpace:"nowrap", fontWeight:700, flexShrink:0 }}>{row.badge}</span>
                 </div>
-                <div>
-                  <div style={{ fontSize:12, color:"#94a3b8", fontWeight:500 }}>{row.event}</div>
-                  <div style={{ fontSize:11, color:"#475569", marginTop:2, fontStyle:"italic" }}>{row.reason}</div>
+                <div style={{ fontSize:11, color:"#475569", marginTop:4, fontStyle:"italic", marginLeft:44 }}>
+                  {row.reason}
                 </div>
-                <div style={{ background:`${row.color}18`, border:`1px solid ${row.color}40`,
-                  color:row.color, borderRadius:6, padding:"4px 8px",
-                  fontSize:9, fontFamily:"'JetBrains Mono',monospace",
-                  letterSpacing:1, whiteSpace:"nowrap", fontWeight:700 }}>{row.badge}</div>
               </div>
             ))}
           </div>
           <div style={{ marginTop:10, textAlign:"center", fontFamily:"'JetBrains Mono',monospace",
-            fontSize:11, color:"#1e293b" }}>
+            fontSize:11, color:"#334155" }}>
             5 events · 4 cancellations · 1 shortened · 0 refunds
           </div>
         </div>
 
         {/* Footer */}
         <div className="card" style={{ animationDelay:".5s", marginTop:32, textAlign:"center",
-          fontFamily:"'JetBrains Mono',monospace", fontSize:10, color:"#1e293b", lineHeight:2 }}>
-          <div>Not affiliated with IRONMAN, WTC, or anyone who swims faster than a 3 mph current.</div>
-          <div>River: USGS NWIS Gauge 03568000 · Weather: NWS Chattanooga</div>
-          <div style={{ color:"#0f172a" }}>The Chattanooga Discount™ is real and legally binding.</div>
+          fontSize:10, lineHeight:2 }}>
+          <div style={{ fontFamily:"'Inter',sans-serif", color:"#334155" }}>
+            Not affiliated with IRONMAN, WTC, or anyone who swims faster than a 3 mph current.
+          </div>
+          <div style={{ fontFamily:"'JetBrains Mono',monospace", color:"#334155" }}>
+            River: NOAA NWPS CHAT1 / CKTT1 · Weather: NWS Chattanooga
+          </div>
+          <div style={{ fontFamily:"'Inter',sans-serif", color:"#1e293b" }}>
+            The Chattanooga Discount™ is real and legally binding.
+          </div>
         </div>
 
       </div>

@@ -31,14 +31,40 @@
   of silently guessing. If TVA's own dam-release data turns out to be more
   reliable than waiting on NOAA's rating, that's still an open option to
   revisit.
-- [ ] **Impeccable design/UX review** — run the `impeccable` skill against
-  the live UI. **Do this before the simulated panel** so the panel is
-  reviewing a polished product, not a rough one.
+- [x] **Impeccable design/UX review** — ran the `impeccable` skill against
+  the UI. Found and fixed:
+  - Real functional bug: `getCurrentRace()` skipped straight past the full
+    IRONMAN's own race day to 2027's 70.3, because date-only strings parse
+    as UTC midnight and the check was a naive `now < date`. Now stays
+    "current" through the full race day.
+  - Stale/misleading copy left over from the old fake-Claude data layer
+    ("web search takes ~10 seconds"), and a footer citation still claiming
+    USGS 03568000 as the live source when it's actually NOAA CHAT1/CKTT1.
+  - Craft-floor bans: replaced all emoji/unicode-glyph icons (weather,
+    verdict, loading, refresh, map-pin, wave) with a small hand-authored
+    inline SVG icon set; removed the gradient/shimmer header text for a
+    solid color; fixed a CSS Grid mobile-overflow bug in the Hall of Shame
+    table (restructured to stacked rows); bumped several low-contrast
+    functional text colors (countdown, timestamps, error states, axis
+    labels) to legible levels; scoped monospace to actual data/status
+    readouts and moved pure prose (weather summary, footer disclaimer) to
+    Inter.
+  - Mechanical detector (`impeccable detect`) also caught a layout-thrash
+    animation (`transition: width` on the countdown bar) — fixed to
+    `transform: scaleX()`. One remaining detector finding (Inter is an
+    "overused font") was left as-is: it's the incumbent body font, not
+    something to swap silently mid-bugfix; revisit with `/impeccable typeset`
+    or `bolder` if a distinct type voice is wanted later.
+  - Verified via Playwright screenshots at desktop/mobile — **note:**
+    `google-chrome --headless --disable-gpu --screenshot` produced false
+    positives (phantom overflow, phantom text clipping) not present in a
+    real Chromium render; if debugging this UI again, verify with Playwright
+    (or a real browser) before trusting that legacy headless mode.
 - [ ] **Simulated triathlete review panel** — spawn ~10 subagent personas
   (varying experience level, risk tolerance, race history, tech-savviness)
-  to critique the app and probability model as a cheap proxy signal, after
-  the impeccable pass above. **Flag before running** — this is a large
-  parallel subagent fan-out and should get an explicit go-ahead per
+  to critique the app and probability model as a cheap proxy signal, now
+  that the impeccable pass above is done. **Flag before running** — this is
+  a large parallel subagent fan-out and should get an explicit go-ahead per
   token-budget policy.
 - [ ] Wire the USGS NWIS gauge 03568000 historical fallback (README already
   describes this; not implemented — `fetchRiverCfs` currently has no

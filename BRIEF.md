@@ -42,14 +42,18 @@ and [TODO.md](TODO.md) for what's next.
   (full is ~2% more forgiving per mile than 70.3), so that's a small ladder
   adjustment (`paceScale`) rather than two hand-tuned ladders.
 
+- Impeccable design/UX pass complete: fixed a real bug (race calendar
+  skipped the full IRONMAN's own race day), stale copy/citations, all
+  emoji/gradient-text craft-floor violations (replaced with an authored SVG
+  icon set and solid header color), a mobile-overflow bug in the Hall of
+  Shame table, several low-contrast functional-text issues, and a
+  layout-thrash animation the mechanical detector caught.
+
 ## In progress / planned
 
 1. **Simulated triathlete review panel** — 10 subagent personas critique the
-   app/model as a fast, cheap proxy before recruiting real race alumni.
-   Sequenced **after** the impeccable pass below, so they're reviewing a
-   polished product.
-2. **Impeccable design review** — UX/visual pass via the `impeccable` skill.
-   Next up.
+   app/model as a fast, cheap proxy before recruiting real race alumni. Next
+   up, now that the impeccable pass is done.
 
 ## Key decisions
 
