@@ -127,12 +127,17 @@ function cfsProbability(cfs, raceType = "70.3") {
   return 1;
 }
 
+// Labels say "7-day" explicitly because this delta is driven by
+// rainInchesNext7Days (accumulated forecast precip over the coming week),
+// not today's conditions — it can legitimately disagree with the "today"
+// summary sentence shown elsewhere (e.g. sunny today, rain later this week).
+// Panel feedback flagged the unlabeled version as reading like a bug.
 const WEATHER_MODIFIERS = {
-  clear:         { delta:   0, label: "Clear skies",             icon: "sun",             color: "#4ade80" },
-  light_rain:    { delta:  -5, label: "Light rain expected",     icon: "cloud-drizzle",   color: "#a3e635" },
-  moderate_rain: { delta: -12, label: "Moderate rain ahead",     icon: "cloud-rain",      color: "#facc15" },
-  heavy_rain:    { delta: -22, label: "Heavy rain forecast",     icon: "cloud-lightning", color: "#f97316" },
-  flood_warning: { delta: -35, label: "Flood warning active",   icon: "alert-triangle",  color: "#ef4444" },
+  clear:         { delta:   0, label: "Clear 7-day outlook",        icon: "sun",             color: "#4ade80" },
+  light_rain:    { delta:  -5, label: "Light rain in 7-day outlook",     icon: "cloud-drizzle",   color: "#a3e635" },
+  moderate_rain: { delta: -12, label: "Moderate rain in 7-day outlook",  icon: "cloud-rain",      color: "#facc15" },
+  heavy_rain:    { delta: -22, label: "Heavy rain in 7-day outlook",     icon: "cloud-lightning", color: "#f97316" },
+  flood_warning: { delta: -35, label: "Flood warning active",       icon: "alert-triangle",  color: "#ef4444" },
 };
 
 function calcProbability(cfs, weatherCondition, raceType = "70.3") {
@@ -311,7 +316,7 @@ function ProbabilityRing({ prob }) {
       </svg>
       <div style={{ position:"absolute", top:"50%", left:"50%", transform:"translate(-50%,-50%)", textAlign:"center", lineHeight:1 }}>
         <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:56, color, filter:`drop-shadow(0 0 12px ${color})` }}>{prob}%</div>
-        <div style={{ fontSize:11, color:"#64748b", letterSpacing:3, marginTop:4, textTransform:"uppercase" }}>Swim Odds</div>
+        <div style={{ fontSize:11, color:"#8895ab", letterSpacing:3, marginTop:4, textTransform:"uppercase" }}>Swim Odds</div>
       </div>
     </div>
   );
@@ -326,7 +331,7 @@ function LoadingRing() {
           strokeDasharray="100 402" strokeLinecap="round" opacity="0.6"/>
       </svg>
       <div style={{ position:"absolute", top:"50%", left:"50%", transform:"translate(-50%,-50%)", textAlign:"center" }}>
-        <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:15, color:"#475569", letterSpacing:3 }}>LOADING</div>
+        <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:15, color:"#7c8aa3", letterSpacing:3 }}>LOADING</div>
       </div>
     </div>
   );
@@ -415,7 +420,7 @@ export default function App() {
             lineHeight:1.15, color:"#f97316"
           }}>Will the Swim Happen?</div>
           <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:"clamp(11px,2.5vw,16px)",
-            letterSpacing:5, color:"#475569", marginTop:4 }}>
+            letterSpacing:5, color:"#7c8aa3", marginTop:4 }}>
             {race.name.toUpperCase()} {race.year} — OFFICIAL PESSIMISM DASHBOARD
           </div>
           <div style={{ marginTop:6, fontFamily:"'JetBrains Mono',monospace", fontSize:11,
@@ -456,17 +461,17 @@ export default function App() {
           ) : prob === null ? (
             <div style={{ textAlign:"center", padding:"40px 0" }}>
               <div style={{ display:"flex", justifyContent:"center", marginBottom:12 }}>
-                <Icon name="wave" size={44} color="#475569"/>
+                <Icon name="wave" size={44} color="#7c8aa3"/>
               </div>
               <div style={{ color:"#94a3b8", fontFamily:"'Inter',sans-serif", fontSize:13, lineHeight:2 }}>
                 River data unavailable.<br/>Much like the swim.
               </div>
               <button className="refresh-btn" onClick={fetchAll} style={{
                 marginTop:20, background:"#0f172a", border:"1px solid #1e293b",
-                borderRadius:8, color:"#64748b", padding:"8px 20px",
+                borderRadius:8, color:"#8895ab", padding:"8px 20px",
                 fontSize:12, cursor:"pointer", fontFamily:"'JetBrains Mono',monospace",
                 display:"inline-flex", alignItems:"center", gap:6 }}>
-                <Icon name="refresh" size={12} color="#64748b"/>Try again
+                <Icon name="refresh" size={12} color="#8895ab"/>Try again
               </button>
             </div>
           ) : (
@@ -481,7 +486,7 @@ export default function App() {
                 <div style={{ fontFamily:"'Bebas Neue',sans-serif",
                   fontSize:"clamp(20px,5vw,30px)", letterSpacing:2,
                   color:"#f1f5f9", animation:"flicker 7s infinite" }}>{verdict.text}</div>
-                <div style={{ color:"#475569", fontSize:13, marginTop:6, fontStyle:"italic" }}>
+                <div style={{ color:"#7c8aa3", fontSize:13, marginTop:6, fontStyle:"italic" }}>
                   {verdict.sub}
                 </div>
               </div>
@@ -504,7 +509,7 @@ export default function App() {
                     paddingTop: row.bold ? 8 : 0, marginBottom: row.bold ? 0 : 7 }}>
                     <span style={{ fontFamily:"'JetBrains Mono',monospace",
                       fontSize: row.bold ? 12 : 11,
-                      color: row.bold ? "#e2e8f0" : "#475569",
+                      color: row.bold ? "#e2e8f0" : "#7c8aa3",
                       fontWeight: row.bold ? 700 : 400 }}>{row.label}</span>
                     <span style={{ fontFamily:"'JetBrains Mono',monospace",
                       fontSize: row.bold ? 15 : 11, color:row.color, fontWeight: row.bold ? 700 : 400,
@@ -520,7 +525,7 @@ export default function App() {
                   border:`1px solid ${riverSt?.color ?? "#1e293b"}28`,
                   borderRadius:12, padding:"14px", textAlign:"center" }}>
                   {errorRiver ? (
-                    <div style={{ color:"#64748b", fontSize:11, fontFamily:"'JetBrains Mono',monospace" }}>
+                    <div style={{ color:"#8895ab", fontSize:11, fontFamily:"'JetBrains Mono',monospace" }}>
                       River data unavailable
                     </div>
                   ) : (
@@ -530,7 +535,7 @@ export default function App() {
                         color:riverSt.color, filter:`drop-shadow(0 0 6px ${riverSt.color})` }}>
                         {effectiveCfs?.toLocaleString()}
                       </div>
-                      <div style={{ fontSize:10, color:"#475569", letterSpacing:3, marginTop:3 }}>
+                      <div style={{ fontSize:10, color:"#7c8aa3", letterSpacing:3, marginTop:3 }}>
                         CFS · {riverSt.label}
                       </div>
                       {usesUpstream && (
@@ -546,7 +551,7 @@ export default function App() {
                 <div style={{ background:"#0a0f1a", border:`1px solid ${wMod.color}28`,
                   borderRadius:12, padding:"14px", textAlign:"center" }}>
                   {errorWeather ? (
-                    <div style={{ color:"#64748b", fontSize:11, fontFamily:"'JetBrains Mono',monospace" }}>
+                    <div style={{ color:"#8895ab", fontSize:11, fontFamily:"'JetBrains Mono',monospace" }}>
                       Weather unavailable
                     </div>
                   ) : (
@@ -570,9 +575,9 @@ export default function App() {
                 <div style={{ marginTop:10, background:"#0a0f1a", border:"1px solid #1e293b",
                   borderRadius:12, padding:"11px 15px", display:"flex", gap:8, alignItems:"flex-start",
                   fontFamily:"'Inter',sans-serif", fontSize:11,
-                  color:"#64748b", fontStyle:"italic", lineHeight:1.6 }}>
-                  <Icon name="map-pin" size={13} color="#475569" style={{ flexShrink:0, marginTop:3 }}/>
-                  <span>{weather.summary}</span>
+                  color:"#8895ab", fontStyle:"italic", lineHeight:1.6 }}>
+                  <Icon name="map-pin" size={13} color="#7c8aa3" style={{ flexShrink:0, marginTop:3 }}/>
+                  <span><strong style={{ fontStyle:"normal", color:"#94a3b8" }}>Today: </strong>{weather.summary}</span>
                 </div>
               )}
 
@@ -590,7 +595,7 @@ export default function App() {
                     }}/>
                   </div>
                   <div style={{ display:"flex", justifyContent:"space-between", marginTop:4,
-                    fontFamily:"'JetBrains Mono',monospace", fontSize:10, color:"#475569" }}>
+                    fontFamily:"'JetBrains Mono',monospace", fontSize:10, color:"#7c8aa3" }}>
                     <span>0</span><span>20K safe</span><span>40K</span><span>60K+ cancel</span>
                   </div>
                 </div>
@@ -610,7 +615,7 @@ export default function App() {
               {loading ? "FETCHING" : "LIVE"}
             </span>
             {lastUpdated && !loading && (
-              <span style={{ fontFamily:"'JetBrains Mono',monospace", fontSize:11, color:"#64748b" }}>
+              <span style={{ fontFamily:"'JetBrains Mono',monospace", fontSize:11, color:"#8895ab" }}>
                 · {lastUpdated.toLocaleTimeString()}
               </span>
             )}
@@ -622,21 +627,21 @@ export default function App() {
                 background:"linear-gradient(90deg,#f97316,#facc15)", transition:"transform 1s linear" }}/>
             </div>
             <span style={{ fontFamily:"'JetBrains Mono',monospace", fontSize:10,
-              color:"#64748b", whiteSpace:"nowrap" }}>{fmtCountdown}</span>
+              color:"#8895ab", whiteSpace:"nowrap" }}>{fmtCountdown}</span>
           </div>
           <button className="refresh-btn" onClick={fetchAll} disabled={loading} style={{
             background:"#0f172a", border:"1px solid #1e293b", borderRadius:8,
-            color: loading ? "#1e293b" : "#64748b", padding:"5px 12px", fontSize:11,
+            color: loading ? "#1e293b" : "#8895ab", padding:"5px 12px", fontSize:11,
             cursor: loading ? "default" : "pointer", display:"inline-flex", alignItems:"center", gap:6,
             fontFamily:"'JetBrains Mono',monospace", letterSpacing:1, transition:"all .2s" }}>
-            <Icon name="refresh" size={11} color={loading ? "#1e293b" : "#64748b"}/>REFRESH
+            <Icon name="refresh" size={11} color={loading ? "#1e293b" : "#8895ab"}/>REFRESH
           </button>
         </div>
 
         {/* Hall of Shame */}
         <div className="card" style={{ animationDelay:".28s" }}>
           <div style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:20, letterSpacing:4,
-            color:"#475569", marginBottom:12, display:"flex", alignItems:"center", gap:10 }}>
+            color:"#7c8aa3", marginBottom:12, display:"flex", alignItems:"center", gap:10 }}>
             <span style={{ display:"inline-block", width:4, height:18, background:"#f97316", borderRadius:2 }}/>
             HALL OF SHAME
           </div>
@@ -650,7 +655,7 @@ export default function App() {
                 <div style={{ display:"flex", alignItems:"center", gap:10 }}>
                   <div style={{ minWidth:0, flex:1 }}>
                     <div style={{ fontSize:14, color:"#e2e8f0", fontWeight:600 }}>{row.event}</div>
-                    <div style={{ fontSize:11, color:"#64748b", marginTop:3 }}>
+                    <div style={{ fontSize:11, color:"#8895ab", marginTop:3 }}>
                       <span style={{ fontFamily:"'JetBrains Mono',monospace", color:"#94a3b8" }}>{row.year}</span>
                       <span style={{ color:"#334155", margin:"0 6px" }}>·</span>
                       <span style={{ fontStyle:"italic" }}>{row.reason}</span>
