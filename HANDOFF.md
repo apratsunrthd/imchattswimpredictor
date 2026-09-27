@@ -62,6 +62,20 @@ Deploy is `npm run deploy` → builds and pushes `dist/` to GitHub Pages via
 - `RACES` array in `App.jsx` drives which race the header/prediction target;
   extend this array rather than branching UI code when adding races.
 
+## Gotchas (continued)
+
+- **Screenshot debugging:** `google-chrome --headless --disable-gpu
+  --screenshot=...` (legacy headless mode) produced false-positive visual
+  bugs when auditing this UI — phantom horizontal overflow and phantom text
+  clipping that don't exist in a real render. Confirmed via Playwright
+  (`chromium.launch()` + `page.screenshot()`) that the actual page has zero
+  overflow at 390px. If you see a visual bug that looks structural, verify
+  with Playwright or a real browser before trusting legacy `--headless
+  --disable-gpu` captures.
+- Icons are hand-authored inline SVG in the `Icon` component in
+  `src/App.jsx` (no icon library dependency) — add new names there rather
+  than reaching for an emoji or a new package.
+
 ## Open threads
 
 See [TODO.md](TODO.md) — full IRONMAN swim-start CFS estimate, CKTT1
