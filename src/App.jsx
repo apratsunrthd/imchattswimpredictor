@@ -648,16 +648,12 @@ export default function App() {
                 background:"transparent", transition:"background .2s",
                 animation:"fadeIn .5s ease both", animationDelay:`${.32+i*.06}s` }}>
                 <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-                  <div style={{ display:"flex", alignItems:"baseline", gap:10, flex:1, minWidth:0 }}>
-                    <span style={{ fontFamily:"'Bebas Neue',sans-serif", fontSize:22, color:"#94a3b8",
-                      flexShrink:0, width:34 }}>
-                      {row.year}
-                    </span>
-                    <div style={{ minWidth:0 }}>
-                      <div style={{ fontSize:12, color:"#94a3b8", fontWeight:500 }}>{row.event}</div>
-                      <div style={{ fontSize:11, color:"#475569", marginTop:3, fontStyle:"italic" }}>
-                        {row.reason}
-                      </div>
+                  <div style={{ minWidth:0, flex:1 }}>
+                    <div style={{ fontSize:14, color:"#e2e8f0", fontWeight:600 }}>{row.event}</div>
+                    <div style={{ fontSize:11, color:"#64748b", marginTop:3 }}>
+                      <span style={{ fontFamily:"'JetBrains Mono',monospace", color:"#94a3b8" }}>{row.year}</span>
+                      <span style={{ color:"#334155", margin:"0 6px" }}>·</span>
+                      <span style={{ fontStyle:"italic" }}>{row.reason}</span>
                     </div>
                   </div>
                   <span style={{ background:`${row.color}18`, border:`1px solid ${row.color}40`,

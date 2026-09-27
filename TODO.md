@@ -21,12 +21,15 @@
     over time, revisit these brackets again — a proper history of
     completed swims (not just the Hall of Shame's cancellations) would
     make this a lot less single-point-dependent.
-- [x] **Hall of Shame row alignment** — year/event/reason text is now one
-  flex group so event name and reason text share an exact left edge by
-  construction (was a guessed `marginLeft:44` before), and year+event use
-  `alignItems:"baseline"` instead of `"center"` so the large Bebas Neue year
-  number lines up properly against the smaller event text instead of
-  looking vertically off.
+- [x] **Hall of Shame row alignment, take 2** — the baseline-alignment fix
+  above wasn't actually the problem (see the `#root` global stylesheet bug
+  just above) and still looked wrong once that bug was exposed. Restructured
+  the hierarchy instead of re-tweaking align properties: event name is now
+  the bold primary line, with year + reason demoted to a single small
+  secondary line below it (same size, same baseline, comma/dot-separated) —
+  removes the giant-22px-number-next-to-tiny-12px-text size clash entirely
+  rather than trying to align two very different type sizes against each
+  other.
 - [x] **Full IRONMAN swim-start CFS blend, with real course numbers** —
   researched actual swim-start distances (nvdmcoaching / endurancenation
   race guides, cross-checked against public river-mile data): CKTT1
@@ -92,9 +95,20 @@
 - [ ] Wire the USGS NWIS gauge 03568000 historical fallback (README already
   describes this; not implemented — `fetchRiverCfs` currently has no
   fallback path if NOAA is down).
-- [ ] Delete dead files: `src/App.css`, unused Vite-template rules in
-  `src/index.css`, `src/assets/react.svg`, `src/assets/vite.svg`,
-  `src/assets/hero.png` — none referenced anywhere in `src/`.
+- [x] **Deleted dead files** (`src/App.css`, `src/index.css`, unused
+  assets) — `src/index.css` turned out not to be fully dead: it carried a
+  leftover Vite-template `#root { text-align: center; ... }` rule that was
+  silently inherited by every element on the page. Masked everywhere else
+  because every other block already had its own explicit `textAlign:
+  "center"` (so the inherited rule changed nothing visible), or sat on a
+  shrink-to-fit box (centering text within a box exactly as wide as the
+  text does nothing). The Hall of Shame rewrite was the first left-aligned,
+  full-width text block on the page, so it was the first thing to expose
+  it — reads as "weird alignment" but the real bug was a global stylesheet
+  leftover, not the row's own layout. Removed the file and its import from
+  `main.jsx` entirely rather than patching around it, since nothing in the
+  app actually needs it (all real styling lives in App.jsx's own inline
+  `<style>` block).
 - [ ] Pre-existing eslint error at `src/App.jsx:188` (`react-hooks/set-state-in-effect`,
   calling `fetchAll()` synchronously in the mount effect) — not touched by
   the data-layer fix; needs a decision on whether/how to restructure.
