@@ -86,12 +86,43 @@
     positives (phantom overflow, phantom text clipping) not present in a
     real Chromium render; if debugging this UI again, verify with Playwright
     (or a real browser) before trusting that legacy headless mode.
-- [ ] **Simulated triathlete review panel** — spawn ~10 subagent personas
-  (varying experience level, risk tolerance, race history, tech-savviness)
-  to critique the app and probability model as a cheap proxy signal, now
-  that the impeccable pass above is done. **Flag before running** — this is
-  a large parallel subagent fan-out and should get an explicit go-ahead per
-  token-budget policy.
+- [x] **Simulated triathlete review panel (10 personas, haiku)** — average
+  bookmark score 6.2/10 (range 5-8). One persona (Chattanooga local veteran)
+  caught a real bug, not just an opinion: the weather modifier
+  ("Weather · Moderate rain ahead", -12%) is driven by `rainInchesNext7Days`
+  (a 7-day accumulated forecast), while the summary sentence shown right
+  below it (`daily.properties.periods[0].detailedForecast`) is just *today's*
+  forecast — these can legitimately disagree (sunny today, rain later this
+  week) and read as a contradiction. Fixed: modifier labels now say
+  "... in 7-day outlook" explicitly, and the summary sentence is prefixed
+  "Today: ". Verified via WCAG contrast math that the accessibility
+  persona's complaint was also real, not just a vibe: several secondary-text
+  colors (`#475569`, `#64748b`) measured 2.5-4.2:1 against their
+  backgrounds, below the 4.5:1 AA threshold for normal text — bumped to
+  `#7c8aa3` / `#8895ab` (5.5-8.3:1), same two-tier hierarchy, comfortably
+  passing.
+  - [ ] Still open (design-judgment items raised by multiple personas, not
+    yet acted on — revisit deliberately, don't just bolt on):
+    - CFS jargon is never explained for non-technical users (newbie,
+      spectator personas). A one-line "CFS = cubic feet per second, how
+      much water's moving" explainer or tooltip would help without
+      cluttering the UI.
+    - The flat "Chattanooga Discount™ -9%" reads as arbitrary/unexplained
+      to several personas (engineer, veteran, traveler, weather nerd) — it's
+      intentional flavor (a permanent "you got cocky" tax), but nothing
+      currently signals that it's deliberate rather than an unexplained
+      magic number.
+    - Model is a single live snapshot with no trend/forecast-window framing
+      (weather nerd, destination traveler both wanted this) — the README's
+      documented forecast-blending model (race-day CFS forecast, river
+      trend) still isn't implemented in code; this is the same gap noted
+      in ARCHITECTURE.md from the original data-layer fix.
+    - Tone tension: the "pessimism" framing that engineer/creator personas
+      loved (8/10 each) is exactly what made the anxious-spectator persona
+      more anxious, not less (6/10, explicitly "would resent it on race
+      day"). This is a real product-voice tradeoff, not a bug — no action
+      taken, flagging for a deliberate call rather than an unprompted
+      rewrite.
 - [ ] Wire the USGS NWIS gauge 03568000 historical fallback (README already
   describes this; not implemented — `fetchRiverCfs` currently has no
   fallback path if NOAA is down).
