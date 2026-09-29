@@ -101,28 +101,29 @@
   backgrounds, below the 4.5:1 AA threshold for normal text — bumped to
   `#7c8aa3` / `#8895ab` (5.5-8.3:1), same two-tier hierarchy, comfortably
   passing.
-  - [ ] Still open (design-judgment items raised by multiple personas, not
-    yet acted on — revisit deliberately, don't just bolt on):
-    - CFS jargon is never explained for non-technical users (newbie,
-      spectator personas). A one-line "CFS = cubic feet per second, how
-      much water's moving" explainer or tooltip would help without
-      cluttering the UI.
-    - The flat "Chattanooga Discount™ -9%" reads as arbitrary/unexplained
-      to several personas (engineer, veteran, traveler, weather nerd) — it's
-      intentional flavor (a permanent "you got cocky" tax), but nothing
-      currently signals that it's deliberate rather than an unexplained
-      magic number.
-    - Model is a single live snapshot with no trend/forecast-window framing
-      (weather nerd, destination traveler both wanted this) — the README's
-      documented forecast-blending model (race-day CFS forecast, river
-      trend) still isn't implemented in code; this is the same gap noted
-      in ARCHITECTURE.md from the original data-layer fix.
-    - Tone tension: the "pessimism" framing that engineer/creator personas
-      loved (8/10 each) is exactly what made the anxious-spectator persona
-      more anxious, not less (6/10, explicitly "would resent it on race
-      day"). This is a real product-voice tradeoff, not a bug — no action
-      taken, flagging for a deliberate call rather than an unprompted
-      rewrite.
+  - [x] **CFS jargon explainer** — added a small always-visible caption
+    under the CFS tile ("cubic feet/sec — water moving past the gauge").
+    Visible-by-default rather than a hover tooltip, since a `title`-only
+    tooltip is useless on the mobile viewports most of this session's own
+    testing showed are the primary usage pattern.
+  - [x] **"Chattanooga Discount™" intentionality signal** — added a small
+    caption under the breakdown ledger: "a permanent -9% pessimism tax,
+    applied every time, on purpose. Not a bug." Doesn't explain away the
+    joke, just confirms it is one.
+  - [x] **Trend + forecast framing** — CHAT1's stageflow payload already
+    carried both a `forecast.data` array (NOAA's own ~3-day hydrograph) and
+    enough `observed.data` history for a trend, but the code only ever read
+    the single latest point. Added `fetchChat1Detail()` (replaces
+    `fetchRiverCfs`) to also surface: a rising/falling trend badge (only
+    shown when the change over ~3h exceeds 2,000 CFS, so a stable river
+    shows nothing extra) and NOAA's furthest-out forecast CFS + date. This
+    is the "River Trend" and "Forecast" factors the original README always
+    described but the code never implemented until now.
+  - [ ] Not acted on — deliberate, left for a product-voice decision rather
+    than an unprompted rewrite: the "pessimism" framing that
+    engineer/creator personas loved (8/10 each) is exactly what made the
+    anxious-spectator persona more anxious, not less (6/10, "would resent
+    it on race day"). Revisit only if asked.
 - [ ] Wire the USGS NWIS gauge 03568000 historical fallback (README already
   describes this; not implemented — `fetchRiverCfs` currently has no
   fallback path if NOAA is down).

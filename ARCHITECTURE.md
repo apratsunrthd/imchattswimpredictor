@@ -28,9 +28,13 @@ Browser (React SPA)
   `WEATHER_MODIFIERS` (flat delta per condition) + a flat −9 constant
   ("Chattanooga Discount"), combined in `calcProbability()`. This is a
   simplified stand-in for the multi-factor, confidence-weighted model
-  described in `README.md` (historical base-rate blending, race-day forecast
-  override, river trend, distance-to-race decay) — that fuller model is not
-  implemented in code yet.
+  described in `README.md` (historical base-rate blending, distance-to-race
+  decay) — that fuller model is still not implemented. Two of the README's
+  documented factors *are* now implemented, though: `fetchChat1Detail()`
+  surfaces a rising/falling trend (shown only when the ~3h change exceeds
+  2,000 CFS) and NOAA's own furthest-out forecast point from the same
+  `forecast.data` array the gauge already returns — both display-only, not
+  yet fed into `calcProbability()` itself.
 - **Race calendar** — `RACES` array + `getCurrentRace()`, picks the next
   upcoming race by date.
 - **UI** — `ProbabilityRing`, `LoadingRing`, `Pulse`, and the main render
