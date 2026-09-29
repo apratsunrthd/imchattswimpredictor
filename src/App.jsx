@@ -12,8 +12,35 @@ async function fetchGaugeCfs(gaugeId) {
   return latest ? Math.round(latest.secondary * 1000) : null;
 }
 
-function fetchRiverCfs() {
-  return fetchGaugeCfs("CHAT1");
+// CHAT1 carries both a live reading and NOAA's own ~3-day forecast in the
+// same payload — the original README described using both (a rising/falling
+// trend, and the furthest-out forecast point) but the code never actually
+// did until now. Fetched once and reused for both, rather than a second
+// request on top of fetchGaugeCfs's simpler single-number version.
+async function fetchChat1Detail() {
+  const res = await fetch("https://api.water.noaa.gov/nwps/v1/gauges/CHAT1/stageflow");
+  if (!res.ok) throw new Error(`NOAA CHAT1 ${res.status}`);
+  const data = await res.json();
+
+  const validPoints = (data.observed?.data ?? []).filter(p => p.secondary >= 0);
+  const latest = validPoints[validPoints.length - 1];
+  const cfs = latest ? Math.round(latest.secondary * 1000) : null;
+
+  // Trend: change over the last ~3 hours. Only meaningful once the river's
+  // actually moving — a still river shouldn't show a trend at all.
+  let trendCfs = null;
+  if (latest) {
+    const threeHoursAgo = new Date(latest.validTime).getTime() - 3 * 60 * 60 * 1000;
+    const past = [...validPoints].reverse().find(p => new Date(p.validTime).getTime() <= threeHoursAgo);
+    if (past) trendCfs = cfs - Math.round(past.secondary * 1000);
+  }
+
+  const forecastPoints = data.forecast?.data ?? [];
+  const lastForecast = forecastPoints[forecastPoints.length - 1];
+  const forecastCfs = lastForecast ? Math.round(lastForecast.secondary * 1000) : null;
+  const forecastDate = lastForecast ? new Date(lastForecast.validTime) : null;
+
+  return { cfs, trendCfs, forecastCfs, forecastDate };
 }
 
 // CKTT1 (Chickamauga Dam tailwater, upstream of CHAT1) has no reliable flow
@@ -280,6 +307,23 @@ function Icon({ name, size = 20, color = "currentColor", style }) {
     </svg>
   );
 
+  if (name === "trend-up" || name === "trend-down") return (
+    <svg {...common} fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      {name === "trend-up"
+        ? <><polyline points="3,17 10,10 14,14 21,6"/><polyline points="15,6 21,6 21,12"/></>
+        : <><polyline points="3,7 10,14 14,10 21,18"/><polyline points="15,18 21,18 21,12"/></>}
+    </svg>
+  );
+
+  if (name === "forecast") return (
+    <svg {...common} fill="none" stroke={color} strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="5" width="18" height="16" rx="2"/>
+      <line x1="3" y1="10" x2="21" y2="10"/>
+      <line x1="8" y1="3" x2="8" y2="7"/>
+      <line x1="16" y1="3" x2="16" y2="7"/>
+    </svg>
+  );
+
   return null;
 }
 
@@ -346,6 +390,9 @@ function Pulse({ color="#4ade80" }) {
 
 export default function App() {
   const [cfs,            setCfs]           = useState(null);
+  const [trendCfs,       setTrendCfs]      = useState(null);
+  const [forecastCfs,    setForecastCfs]   = useState(null);
+  const [forecastDate,   setForecastDate]  = useState(null);
   const [upstreamCfs,    setUpstreamCfs]   = useState(null);
   const [weather,        setWeather]        = useState(null);
   const [loadingRiver,   setLoadingRiver]   = useState(true);
@@ -361,9 +408,19 @@ export default function App() {
     setErrorRiver(false);
     setErrorWeather(false);
 
-    Promise.all([fetchRiverCfs(), fetchUpstreamCfs()])
-      .then(([v, upstream]) => { setCfs(v); setUpstreamCfs(upstream); setErrorRiver(v === null); })
-      .catch(() => { setErrorRiver(true); setCfs(null); setUpstreamCfs(null); })
+    Promise.all([fetchChat1Detail(), fetchUpstreamCfs()])
+      .then(([chat1, upstream]) => {
+        setCfs(chat1.cfs);
+        setTrendCfs(chat1.trendCfs);
+        setForecastCfs(chat1.forecastCfs);
+        setForecastDate(chat1.forecastDate);
+        setUpstreamCfs(upstream);
+        setErrorRiver(chat1.cfs === null);
+      })
+      .catch(() => {
+        setErrorRiver(true);
+        setCfs(null); setTrendCfs(null); setForecastCfs(null); setForecastDate(null); setUpstreamCfs(null);
+      })
       .finally(() => setLoadingRiver(false));
 
     fetchWeather()
@@ -517,6 +574,10 @@ export default function App() {
                     }}>{row.value}</span>
                   </div>
                 ))}
+                <div style={{ marginTop:10, paddingTop:8, borderTop:"1px solid #1e293b",
+                  fontSize:9, color:"#334155", fontStyle:"italic" }}>
+                  Chattanooga Discount™: a permanent -9% pessimism tax, applied every time, on purpose. Not a bug.
+                </div>
               </div>
 
               {/* Data tiles */}
@@ -530,14 +591,38 @@ export default function App() {
                     </div>
                   ) : (
                     <>
-                      <div style={{ fontFamily:"'JetBrains Mono',monospace",
-                        fontSize:"clamp(20px,4vw,30px)", fontWeight:700,
-                        color:riverSt.color, filter:`drop-shadow(0 0 6px ${riverSt.color})` }}>
-                        {effectiveCfs?.toLocaleString()}
+                      <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:8 }}>
+                        <div style={{ fontFamily:"'JetBrains Mono',monospace",
+                          fontSize:"clamp(20px,4vw,30px)", fontWeight:700,
+                          color:riverSt.color, filter:`drop-shadow(0 0 6px ${riverSt.color})` }}>
+                          {effectiveCfs?.toLocaleString()}
+                        </div>
+                        {trendCfs !== null && Math.abs(trendCfs) > 2000 && (
+                          <div style={{ display:"flex", alignItems:"center", gap:2,
+                            color: trendCfs > 0 ? "#fb923c" : "#4ade80" }}>
+                            <Icon name={trendCfs > 0 ? "trend-up" : "trend-down"} size={13}/>
+                            <span style={{ fontFamily:"'JetBrains Mono',monospace", fontSize:10 }}>
+                              {trendCfs > 0 ? "+" : ""}{(trendCfs / 1000).toFixed(1)}K/3h
+                            </span>
+                          </div>
+                        )}
                       </div>
                       <div style={{ fontSize:10, color:"#7c8aa3", letterSpacing:3, marginTop:3 }}>
                         CFS · {riverSt.label}
                       </div>
+                      <div style={{ fontSize:9, color:"#334155", marginTop:2 }}>
+                        cubic feet/sec — water moving past the gauge
+                      </div>
+                      {forecastCfs !== null && forecastDate && (
+                        <div style={{ display:"flex", alignItems:"center", justifyContent:"center", gap:4,
+                          fontSize:9, color:"#334155", marginTop:4, fontFamily:"'JetBrains Mono',monospace" }}>
+                          <Icon name="forecast" size={10} color="#334155"/>
+                          <span>
+                            NOAA forecast: {forecastCfs.toLocaleString()} CFS by{" "}
+                            {forecastDate.toLocaleDateString(undefined, { month:"short", day:"numeric" })}
+                          </span>
+                        </div>
+                      )}
                       {usesUpstream && (
                         <div style={{ fontSize:9, color:"#334155", marginTop:4, fontFamily:"'JetBrains Mono',monospace" }}>
                           {upstreamCfs !== null
